@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+:root {
+  --navy: #0f3a5f;
+  --navy-2: #1a5276;
+  --gold: #c9a227;
+  --paper: #f4f0e6;
+  --ink: #1c1917;
+}
+
+@theme inline {
+  --color-navy: var(--navy);
+  --color-navy-2: var(--navy-2);
+  --color-gold: var(--gold);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --font-sans: var(--font-geist-sans);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+button,
+select,
+input {
+  font: inherit;
+}
