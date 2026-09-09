@@ -1,8 +1,12 @@
 import type { AppData, Day } from "./types";
 
 export function nextTechnicianCode(data: AppData): string {
-  const n = data.technicians.length + 1;
-  return `T${String(n).padStart(2, "0")}`;
+  const nums = data.technicians.map((t) => {
+    const m = t.id.match(/T(\d+)/);
+    return m ? Number(m[1]) : 0;
+  });
+  const next = (nums.length ? Math.max(...nums) : 0) + 1;
+  return `T${String(next).padStart(2, "0")}`;
 }
 
 export function nextRouteId(data: AppData): string {
@@ -16,11 +20,16 @@ export function nextRouteId(data: AppData): string {
 
 export function findOrCreateRouteId(
   data: AppData,
-  day: Day,
-  leadId: string,
+  _day: Day,
+  _date?: string,
+  routeId?: string,
 ): { routeId: string; created: boolean } {
-  const existing = data.routes.find((r) => r.day === day && r.leadId === leadId);
-  if (existing) return { routeId: existing.id, created: false };
+  if (routeId) {
+    const existing = data.routes.find(
+      (r) => r.id === routeId && r.status === "abierta",
+    );
+    if (existing) return { routeId: existing.id, created: false };
+  }
   return { routeId: nextRouteId(data), created: true };
 }
 

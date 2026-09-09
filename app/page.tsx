@@ -9,11 +9,6 @@ export default function Home() {
       <h1 className="mt-2 text-4xl font-bold text-navy">
         ¿Quién eres hoy?
       </h1>
-      <p className="mt-3 max-w-xl text-stone-600">
-        Jefatura arma la ruta y asigna gente. El técnico solo abre su nombre y
-        ve a dónde ir, sin llamar. Los datos quedan en este navegador (sin base
-        de datos).
-      </p>
 
       <div className="mt-10 grid gap-4 sm:grid-cols-2">
         <Link
@@ -22,10 +17,6 @@ export default function Home() {
         >
           <p className="text-sm font-medium text-gold">Rol</p>
           <h2 className="mt-1 text-2xl font-bold">Jefatura</h2>
-          <p className="mt-2 text-sm text-blue-100">
-            Catálogos, paradas en orden, ID automático por día y encargado,
-            asignación y viáticos.
-          </p>
         </Link>
         <Link
           href="/tecnico"
@@ -33,10 +24,6 @@ export default function Home() {
         >
           <p className="text-sm font-medium text-gold">Rol</p>
           <h2 className="mt-1 text-2xl font-bold">Técnico</h2>
-          <p className="mt-2 text-sm text-stone-600">
-            Elige tu nombre y mira el orden de locaciones, la camioneta y quién
-            lleva la plata.
-          </p>
         </Link>
       </div>
     </main>

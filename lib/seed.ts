@@ -1,3 +1,5 @@
+import { upcomingWeekday } from "./calendar";
+import { regionLocations } from "./regions";
 import type { AppData } from "./types";
 
 export const SEED: AppData = {
@@ -6,41 +8,48 @@ export const SEED: AppData = {
     name: `Técnico ${String(i + 1).padStart(2, "0")}`,
     active: true,
   })),
-  locations: [
-    { id: "loc-base", name: "Santiago (base)", zone: "Centro", workType: "Traslado", equipment: 0 },
-    { id: "loc-stgo", name: "Santiago", zone: "Centro", workType: "Instalación y capacitación", equipment: 3 },
-    { id: "loc-valpo", name: "Valparaíso", zone: "Norte", workType: "Instalación y capacitación", equipment: 1 },
-    { id: "loc-cop", name: "Copiapó", zone: "Norte", workType: "Instalación y capacitación", equipment: 5 },
-    { id: "loc-coq", name: "Coquimbo", zone: "Norte", workType: "Instalación y capacitación", equipment: 2 },
-    { id: "loc-cal", name: "La Calera", zone: "Norte", workType: "Instalación y capacitación", equipment: 1 },
-    { id: "loc-sa", name: "San Antonio", zone: "Norte", workType: "Instalación y capacitación", equipment: 2 },
-    { id: "loc-mel", name: "Melipilla", zone: "Centro", workType: "Instalación y capacitación", equipment: 2 },
-    { id: "loc-lb", name: "Lo Barnechea", zone: "Centro", workType: "Instalación y capacitación", equipment: 3 },
-    { id: "loc-pa", name: "Puente Alto", zone: "Centro", workType: "Instalación y capacitación", equipment: 1 },
-    { id: "loc-pud", name: "Pudahuel", zone: "Centro", workType: "Instalación y capacitación", equipment: 3 },
-    { id: "loc-mai", name: "Maipú", zone: "Centro", workType: "Instalación y capacitación", equipment: 3 },
-    { id: "loc-cur", name: "Curicó", zone: "Sur", workType: "Instalación y capacitación", equipment: 1 },
-    { id: "loc-tal", name: "Talca", zone: "Sur", workType: "Instalación y capacitación", equipment: 3 },
-    { id: "loc-sp", name: "San Pedro de la Paz", zone: "Sur", workType: "Instalación y capacitación", equipment: 1 },
-    { id: "loc-pen", name: "Penco", zone: "Sur", workType: "Instalación y capacitación", equipment: 1 },
-    { id: "loc-tom", name: "Tomé", zone: "Sur", workType: "Instalación y capacitación", equipment: 1 },
-    { id: "loc-sj", name: "Santa Juana", zone: "Sur", workType: "Instalación y capacitación", equipment: 1 },
+  locations: regionLocations(),
+  vehicles: [
+    { id: "v1", name: "Partner", model: "Partner", kind: "Camioneta", plate: "ABCD10", status: "operativo" },
+    { id: "v2", name: "Partner", model: "Partner", kind: "Camioneta", plate: "ABCD11", status: "operativo" },
+    { id: "v3", name: "Berlingo", model: "Berlingo", kind: "Furgón", plate: "ABCD12", status: "operativo" },
+    { id: "v4", name: "Hilux", model: "Hilux", kind: "Camioneta", plate: "ABCD13", status: "operativo" },
+    { id: "v5", name: "Partner", model: "Partner", kind: "Camioneta", plate: "ABCD14", status: "operativo" },
+    { id: "v6", name: "Ranger", model: "Ranger", kind: "Camioneta", plate: "ABCD15", status: "fuera_de_servicio" },
   ],
-  vehicles: Array.from({ length: 6 }, (_, i) => ({
-    id: `v${i + 1}`,
-    name: `Partner ${i + 1}`,
-    plate: "",
-  })),
   routes: [
-    { id: "R-001", day: "Lunes", leadId: "T05" },
-    { id: "R-002", day: "Lunes", leadId: "T01" },
+    { id: "R-001", day: "Lunes", date: upcomingWeekday("Lunes"), leadId: "T05", vehicleId: "v5", status: "abierta" },
+    { id: "R-002", day: "Lunes", date: upcomingWeekday("Lunes"), leadId: "T01", vehicleId: "v1", status: "abierta" },
   ],
   stops: [
     { id: "s1", routeId: "R-001", order: 1, locationId: "loc-base", workType: "Traslado", time: "08:00" },
-    { id: "s2", routeId: "R-001", order: 2, locationId: "loc-valpo", workType: "Instalación y capacitación", time: "10:00" },
-    { id: "s3", routeId: "R-001", order: 3, locationId: "loc-base", workType: "Traslado", time: "16:00" },
+    {
+      id: "s2",
+      routeId: "R-001",
+      order: 2,
+      locationId: "loc-valparaiso",
+      city: "Valparaíso",
+      workType: "Instalación y capacitación",
+      time: "10:00",
+      assigneeIds: ["T05"],
+      installAddress: "Av. Argentina 2345, Valparaíso",
+      installKind: "Cámaras y DVR",
+      companyName: "Puerto Exterior S.A.",
+      installStatus: "pendiente",
+    },
+    { id: "s3", routeId: "R-001", order: 3, locationId: "loc-base", workType: "Regreso a base", time: "16:00" },
     { id: "s4", routeId: "R-002", order: 1, locationId: "loc-base", workType: "Traslado", time: "06:00" },
-    { id: "s5", routeId: "R-002", order: 2, locationId: "loc-cop", workType: "Traslado", time: "15:00" },
+    {
+      id: "s5",
+      routeId: "R-002",
+      order: 2,
+      locationId: "loc-atacama",
+      city: "Copiapó",
+      workType: "Traslado y pernocte",
+      time: "15:00",
+      lodgingPlan: "Hotel Diego de Almagro Copiapó",
+      lodgingStatus: "pendiente",
+    },
   ],
   assignments: [
     {
@@ -94,4 +103,7 @@ export const SEED: AppData = {
       perDiem: 20000,
     },
   ],
+  progress: [],
+  events: [],
+  updatedAt: 1,
 };
