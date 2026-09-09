@@ -61,11 +61,30 @@ export type Route = {
 
 export type LodgingStatus = "pendiente" | "confirmado" | "cambiado";
 
+export type WorkOrderStatus = "pendiente" | "en_ruta" | "cerrada";
+
+export type WorkOrder = {
+  id: string;
+  workType: WorkType;
+  companyName: string;
+  locationId: string;
+  city?: string;
+  address: string;
+  installKind: string;
+  destLat?: number;
+  destLng?: number;
+  status: WorkOrderStatus;
+  stopId?: string;
+  routeId?: string;
+  createdAt: number;
+};
+
 export type Stop = {
   id: string;
   routeId: string;
   order: number;
   locationId: string;
+  workOrderId?: string;
   city?: string;
   workType: WorkType;
   time: string;
@@ -154,6 +173,7 @@ export type AppData = {
   assignments: Assignment[];
   progress: StopProgress[];
   events: LogEvent[];
+  workOrders: WorkOrder[];
   updatedAt?: number;
 };
 

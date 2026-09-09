@@ -23,6 +23,7 @@ import { withLocationCoords, type GeoFix } from "./geo";
 import { hasSiteAddress, needsCompany } from "./install";
 import { needsLodging } from "./lodging";
 import { findOrCreateRouteId, nextTechnicianCode, uid } from "./ids";
+import { nextWorkOrderId, syncWorkOrders } from "./orders";
 import { applyPlaceToStop, migrateLocations } from "./regions";
 import type { PlaceHit } from "./places";
 import { isFreeForRoute } from "./availability";
@@ -40,6 +41,7 @@ import type {
   Technician,
   VehicleKind,
   VehicleStatus,
+  WorkOrder,
   WorkType,
 } from "./types";
 import { pickOperativeVehicleId } from "./vehicles";
@@ -140,6 +142,7 @@ function normalize(data: AppData): AppData {
   data = migrateLocations(data);
   if (!data.progress) data.progress = [];
   if (!data.events) data.events = [];
+  if (!data.workOrders) data.workOrders = [];
   data.locations = data.locations.map(withLocationCoords);
   data.vehicles = data.vehicles.map((v) => {
     const model = v.model || v.name;
@@ -195,6 +198,7 @@ function normalize(data: AppData): AppData {
       note: "Asignación inicial",
     }));
   }
+  data.workOrders = syncWorkOrders(data);
   return data;
 }
 
@@ -244,6 +248,17 @@ type Store = {
     input: { model: string; kind: VehicleKind; plate: string },
   ) => void;
   setVehicleStatus: (id: string, status: VehicleStatus) => void;
+  addWorkOrder: (input: {
+    workType: WorkType;
+    companyName: string;
+    locationId: string;
+    city?: string;
+    address: string;
+    installKind: string;
+    destLat?: number;
+    destLng?: number;
+  }) => string;
+  removeWorkOrder: (id: string) => void;
   addStop: (input: {
     day: Day;
     locationId: string;
@@ -255,6 +270,7 @@ type Store = {
     installAddress?: string;
     installKind?: string;
     companyName?: string;
+    workOrderId?: string;
     etaAt?: string;
     leaveAt?: string;
     travelMinutes?: number;
@@ -615,6 +631,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             : next;
         });
       },
+      addWorkOrder: (input) => {
+        const companyName = input.companyName.trim();
+        const address = input.address.trim();
+        const installKind = input.installKind.trim();
+        let created = "";
+        bump((d) => {
+          const id = nextWorkOrderId(d);
+          created = id;
+          const createdOrder: WorkOrder = {
+            id,
+            workType: input.workType,
+            companyName,
+            locationId: input.locationId,
+            city: input.city?.trim() || undefined,
+            address,
+            installKind,
+            destLat: input.destLat,
+            destLng: input.destLng,
+            status: "pendiente",
+            createdAt: Date.now(),
+          };
+          return { ...d, workOrders: [...(d.workOrders ?? []), createdOrder] };
+        });
+        return created;
+      },
+      removeWorkOrder: (id) => {
+        bump((d) => {
+          const existing = (d.workOrders ?? []).find((o) => o.id === id);
+          if (!existing || existing.status !== "pendiente") return d;
+          return {
+            ...d,
+            workOrders: d.workOrders.filter((o) => o.id !== id),
+          };
+        });
+      },
       addStop: ({
         day,
         locationId,
@@ -626,6 +677,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         installAddress,
         installKind,
         companyName,
+        workOrderId,
         etaAt,
         leaveAt,
         travelMinutes,
@@ -637,6 +689,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }) => {
         let routeId = "";
         bump((d) => {
+          const wo = workOrderId
+            ? (d.workOrders ?? []).find(
+                (o) => o.id === workOrderId && o.status === "pendiente",
+              )
+            : undefined;
+          if (workOrderId && !wo) return d;
           const when = date ?? dateOfWeekday(day);
           const found = findOrCreateRouteId(d, day, when, existingId);
           routeId = found.routeId;
@@ -660,27 +718,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                     }
                   : r,
               );
-          const order =
+          const nextOrder =
             d.stops.filter((s) => s.routeId === found.routeId).length + 1;
           const lodging = lodgingPlan?.trim() ?? "";
+          const stopId = uid("s");
+          const lat = destLat ?? wo?.destLat;
+          const lng = destLng ?? wo?.destLng;
           let stop: Stop = {
-            id: uid("s"),
+            id: stopId,
             routeId: found.routeId,
-            order,
+            order: nextOrder,
             locationId,
             workType,
             time,
             date: when,
             assigneeIds: [],
-            city: city?.trim() || undefined,
-            ...(leaveAt || etaAt || destLat != null
+            city: city?.trim() || wo?.city || undefined,
+            workOrderId: wo?.id,
+            ...(leaveAt || etaAt || lat != null
               ? {
                   leaveAt,
                   etaAt,
                   travelMinutes,
                   travelKm,
-                  destLat,
-                  destLng,
+                  destLat: lat,
+                  destLng: lng,
                 }
               : {}),
             ...(needsLodging(workType)
@@ -690,21 +752,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 }
               : {}),
             ...(needsCompany(workType)
-              ? { companyName: companyName?.trim() ?? "" }
+              ? { companyName: (companyName ?? wo?.companyName)?.trim() ?? "" }
               : {}),
             ...(hasSiteAddress(workType)
               ? {
-                  installAddress: installAddress?.trim() ?? "",
-                  installKind: installKind?.trim() ?? "",
+                  installAddress:
+                    (installAddress ?? wo?.address)?.trim() ?? "",
+                  installKind:
+                    (installKind ?? wo?.installKind)?.trim() ?? "",
                   installStatus: "pendiente" as const,
                 }
-              : {}),
+              : wo?.address
+                ? {
+                    installAddress: wo.address,
+                    installKind: wo.installKind || undefined,
+                  }
+                : {}),
           };
           if (place) stop = applyPlaceToStop(d, stop, place);
           return {
             ...d,
             routes,
             stops: [...d.stops, stop],
+            workOrders: wo
+              ? (d.workOrders ?? []).map((o) =>
+                  o.id === wo.id
+                    ? {
+                        ...o,
+                        status: "en_ruta" as const,
+                        stopId,
+                        routeId: found.routeId,
+                      }
+                    : o,
+                )
+              : d.workOrders,
           };
         });
         return routeId || "R-???";
@@ -1021,6 +1102,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ...d,
             stops,
             progress: d.progress.filter((p) => p.stopId !== stopId),
+            workOrders: stop.workOrderId
+              ? (d.workOrders ?? []).map((o) =>
+                  o.id === stop.workOrderId && o.status !== "cerrada"
+                    ? {
+                        ...o,
+                        status: "pendiente" as const,
+                        stopId: undefined,
+                        routeId: undefined,
+                      }
+                    : o,
+                )
+              : d.workOrders,
             routes:
               stillUsed || assigned
                 ? d.routes
@@ -1324,6 +1417,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               r.id === routeId
                 ? { ...r, status: "finalizada", closedAt: Date.now() }
                 : r,
+            ),
+            workOrders: (d.workOrders ?? []).map((o) =>
+              o.routeId === routeId
+                ? { ...o, status: "cerrada" as const }
+                : o,
             ),
             events,
           };

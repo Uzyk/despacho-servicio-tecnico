@@ -184,6 +184,7 @@ export function StopCheckin({
           </h3>
           <p className="text-sm text-stone-600">
             {companyNameOf(stop) ? `${loc} · ${stop.workType}` : stop.workType}
+            {stop.workOrderId ? ` · ${stop.workOrderId}` : ""}
           </p>
           {clockHint ? (
             <p className="mt-1 text-sm font-medium text-sky-800">

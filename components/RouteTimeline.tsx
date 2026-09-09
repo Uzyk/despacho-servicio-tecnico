@@ -112,6 +112,7 @@ export function RouteTimeline({
                 <p className="text-sm text-stone-600">
                   {days.length > 1 ? `${formatDayPretty(line.date)} · ` : ""}
                   {companyNameOf(s) ? `${loc} · ` : ""}
+                  {s.workOrderId ? `${s.workOrderId} · ` : ""}
                   {s.workType}
                   {s.time ? ` · ${s.time}` : ""}
                   {needsLodging(s.workType) && lodgingPlace(s)

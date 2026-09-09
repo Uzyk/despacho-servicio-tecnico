@@ -42,10 +42,10 @@ import {
   openRoutes,
   routePayout,
 } from "@/lib/record";
+import { pendingWorkOrders, workOrderLabel, workOrderOf } from "@/lib/orders";
 import { nameOf, useStore } from "@/lib/store";
 import { operativeVehicles, vehicleLabel } from "@/lib/vehicles";
 import {
-  JOB_TYPES,
   TRAVEL_TYPES,
   type Day,
   type WorkType,
@@ -76,6 +76,7 @@ import { PerformanceBoard } from "./PerformanceBoard";
 import { CrewPick } from "./CrewPick";
 import { ReplaceForm } from "./ReplaceForm";
 import { RouteTimeline } from "./RouteTimeline";
+import { OrdersBoard } from "./OrdersBoard";
 import { Card, Field, GhostButton, Input, PrimaryButton, Select } from "./ui";
 
 type Tab =
@@ -86,6 +87,7 @@ type Tab =
   | "calendario"
   | "desempeno"
   | "historial"
+  | "ot"
   | "catalogos";
 
 export function JefaturaApp() {
@@ -115,7 +117,8 @@ export function JefaturaApp() {
     () => dayFromIso(nearestWorkday(isoDate())) ?? "Lunes",
   );
   const [locationId, setLocationId] = useState("loc-metropolitana");
-  const [workType, setWorkType] = useState<WorkType>("Instalación y capacitación");
+  const [workType, setWorkType] = useState<WorkType>("Traslado y pernocte");
+  const [workOrderId, setWorkOrderId] = useState("");
   const [time, setTime] = useState("08:00");
   const [lodgingPlan, setLodgingPlan] = useState("");
   const [installAddress, setInstallAddress] = useState("");
@@ -143,7 +146,10 @@ export function JefaturaApp() {
   const priorRoutes = continuableOpenRoutes(data, date);
   const preview = selectableOpenRoute(data, routeId, date);
   const appending = Boolean(preview);
+  const selectedOrder = workOrderOf(data, workOrderId);
+  const jobbing = Boolean(selectedOrder);
   const returning = isReturnToBase(workType);
+  const openOrders = pendingWorkOrders(data);
   const returnOrigin = lastWorkOrigin(data, preview);
   const resting = preview ? isRestDay(preview, date) : false;
   const canMarkRest = preview ? canRestOn(data, preview, date) : false;
@@ -190,26 +196,45 @@ export function JefaturaApp() {
     const next = addStop({
       day,
       date,
-      locationId: returning ? BASE_LOCATION_ID : regionId,
-      workType,
+      locationId: returning
+        ? BASE_LOCATION_ID
+        : selectedOrder?.locationId ?? regionId,
+      workType: selectedOrder?.workType ?? workType,
       time,
       routeId: appending ? routeId : undefined,
       lodgingPlan: needsLodging(workType) ? lodgingPlan : undefined,
-      installAddress: hasSiteAddress(workType) ? installAddress : undefined,
-      installKind: hasSiteAddress(workType) ? installKind : undefined,
-      companyName: needsCompany(workType) ? companyName : undefined,
+      installAddress: selectedOrder
+        ? selectedOrder.address
+        : hasSiteAddress(workType)
+          ? installAddress
+          : undefined,
+      installKind: selectedOrder
+        ? selectedOrder.installKind
+        : hasSiteAddress(workType)
+          ? installKind
+          : undefined,
+      companyName: selectedOrder
+        ? selectedOrder.companyName
+        : needsCompany(workType)
+          ? companyName
+          : undefined,
+      workOrderId: selectedOrder?.id,
       leaveAt: timeIsDeparture(workType) ? time : eta?.leaveAt,
       etaAt: eta?.etaAt,
       travelMinutes: eta?.minutes,
       travelKm: eta?.km,
-      destLat: eta?.destLat ?? pickedPlace?.lat,
-      destLng: eta?.destLng ?? pickedPlace?.lng,
-      city: pickedPlace ? localityOfPlace(pickedPlace) : undefined,
+      destLat: eta?.destLat ?? pickedPlace?.lat ?? selectedOrder?.destLat,
+      destLng: eta?.destLng ?? pickedPlace?.lng ?? selectedOrder?.destLng,
+      city: pickedPlace
+        ? localityOfPlace(pickedPlace)
+        : selectedOrder?.city,
       place: pickedPlace ?? undefined,
     });
     setRouteId(next);
     setEta(null);
     setPickedPlace(null);
+    setWorkOrderId("");
+    if (jobbing) setWorkType("Traslado y pernocte");
     if (needsLodging(workType)) setLodgingPlan("");
     if (needsCompany(workType)) setCompanyName("");
     if (hasSiteAddress(workType)) {
@@ -245,10 +270,11 @@ export function JefaturaApp() {
         </div>
       </header>
 
-      <nav className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+      <nav className="mb-6 grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-9">
         {(
           [
             ["vivo", "En vivo"],
+            ["ot", "OT"],
             ["rutas", "Armar"],
             ["asignar", "Cuadrilla"],
             ["armadas", "Rutas"],
@@ -271,6 +297,7 @@ export function JefaturaApp() {
       </nav>
 
       {tab === "vivo" ? <LiveBoard /> : null}
+      {tab === "ot" ? <OrdersBoard /> : null}
       {tab === "calendario" ? <CalendarBoard /> : null}
       {tab === "desempeno" ? <PerformanceBoard /> : null}
       {tab === "historial" ? <HistoryBoard /> : null}
@@ -321,7 +348,7 @@ export function JefaturaApp() {
                 <div className="sm:col-span-2 rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-950">
                   Destino: INACAP Santiago Sur
                 </div>
-              ) : (
+              ) : jobbing ? null : (
                 <Field label="Región">
                   <Select
                     value={regionId}
@@ -335,13 +362,35 @@ export function JefaturaApp() {
                   </Select>
                 </Field>
               )}
-              <Field label="Tipo de trabajo">
+              <Field label="Qué se hace">
                 <Select
-                  value={workType}
+                  value={workOrderId || workType}
                   onChange={(e) => {
-                    const next = e.target.value as WorkType;
-                    setWorkType(next);
-                    if (isReturnToBase(next)) {
+                    const next = e.target.value;
+                    const order = workOrderOf(data, next);
+                    if (order) {
+                      setWorkOrderId(order.id);
+                      setWorkType(order.workType);
+                      setLocationId(order.locationId);
+                      setCompanyName(order.companyName);
+                      setInstallAddress(order.address);
+                      setInstallKind(order.installKind);
+                      setPickedPlace(
+                        order.destLat != null && order.destLng != null
+                          ? {
+                              label: order.address,
+                              detail: order.installKind || order.workType,
+                              lat: order.destLat,
+                              lng: order.destLng,
+                              city: order.city,
+                            }
+                          : null,
+                      );
+                      return;
+                    }
+                    setWorkOrderId("");
+                    setWorkType(next as WorkType);
+                    if (isReturnToBase(next as WorkType)) {
                       setPickedPlace(null);
                     }
                   }}
@@ -351,9 +400,11 @@ export function JefaturaApp() {
                       <option key={w}>{w}</option>
                     ))}
                   </optgroup>
-                  <optgroup label="Trabajo">
-                    {JOB_TYPES.map((w) => (
-                      <option key={w}>{w}</option>
+                  <optgroup label="Órdenes de trabajo">
+                    {openOrders.map((order) => (
+                      <option key={order.id} value={order.id}>
+                        {workOrderLabel(order)}
+                      </option>
                     ))}
                   </optgroup>
                 </Select>
@@ -361,6 +412,17 @@ export function JefaturaApp() {
               <Field label={timeFieldLabel(workType)}>
                 <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
               </Field>
+              {jobbing && selectedOrder ? (
+                <p className="sm:col-span-2 rounded-xl bg-stone-50 px-3 py-2 text-sm text-stone-700">
+                  {selectedOrder.city ||
+                    data.locations.find((l) => l.id === selectedOrder.locationId)
+                      ?.name}{" "}
+                  · {selectedOrder.address || selectedOrder.companyName}
+                  {selectedOrder.installKind
+                    ? ` · ${selectedOrder.installKind}`
+                    : ""}
+                </p>
+              ) : null}
               {needsLodging(workType) ? (
                 <div className="sm:col-span-2">
                   <Field label="Lugar o dirección donde dormirán">
@@ -380,7 +442,7 @@ export function JefaturaApp() {
                   </Field>
                 </div>
               ) : null}
-              {needsCompany(workType) ? (
+              {!jobbing && needsCompany(workType) ? (
                 <div className="sm:col-span-2">
                   <Field label="Empresa">
                     <Input
@@ -391,7 +453,7 @@ export function JefaturaApp() {
                   </Field>
                 </div>
               ) : null}
-              {hasSiteAddress(workType) ? (
+              {!jobbing && hasSiteAddress(workType) ? (
                 <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
                   <Field
                     label={
@@ -448,18 +510,20 @@ export function JefaturaApp() {
                     returning
                       ? BASE_POINT
                       : destForDraft(data, {
-                          locationId: regionId,
+                          locationId: selectedOrder?.locationId ?? regionId,
                           lodgingPlan: needsLodging(workType)
                             ? lodgingPlan
                             : undefined,
-                          installAddress: hasSiteAddress(workType)
-                            ? installAddress
-                            : undefined,
+                          installAddress: selectedOrder
+                            ? selectedOrder.address
+                            : hasSiteAddress(workType)
+                              ? installAddress
+                              : undefined,
                           city: pickedPlace
                             ? localityOfPlace(pickedPlace)
-                            : undefined,
-                          lat: pickedPlace?.lat,
-                          lng: pickedPlace?.lng,
+                            : selectedOrder?.city,
+                          lat: pickedPlace?.lat ?? selectedOrder?.destLat,
+                          lng: pickedPlace?.lng ?? selectedOrder?.destLng,
                         })
                   }
                   clock={time}
@@ -479,9 +543,15 @@ export function JefaturaApp() {
                 onClick={onAddStop}
                 disabled={
                   (returning && !returnOrigin) ||
-                  (needsCompany(workType) && !companyName.trim()) ||
+                  (!jobbing &&
+                    !isLocationPing(workType) &&
+                    !TRAVEL_TYPES.includes(workType)) ||
+                  (needsCompany(workType) &&
+                    !jobbing &&
+                    !companyName.trim()) ||
                   (needsLodging(workType) && !lodgingPlan.trim()) ||
                   (hasSiteAddress(workType) &&
+                    !jobbing &&
                     (!installAddress.trim() || !installKind.trim()))
                 }
               >
@@ -489,9 +559,13 @@ export function JefaturaApp() {
                   ? appending
                     ? `Agregar regreso a ${preview?.id}`
                     : "Elige una ruta para el regreso"
-                  : appending
-                    ? `Agregar a ${preview?.id}`
-                    : "Crear ruta y agregar parada"}
+                  : jobbing
+                    ? appending
+                      ? `Agregar ${selectedOrder?.id} a ${preview?.id}`
+                      : `Crear ruta con ${selectedOrder?.id}`
+                    : appending
+                      ? `Agregar a ${preview?.id}`
+                      : "Crear ruta y agregar parada"}
               </PrimaryButton>
             )}
             {preview && canMarkRest ? (
@@ -548,6 +622,7 @@ export function JefaturaApp() {
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span>
                           {s.order}. {formatDayPretty(s.date ?? date)} ·{" "}
+                          {s.workOrderId ? `${s.workOrderId} · ` : ""}
                           {stopLocality(data, s)}
                           {companyNameOf(s) ? ` · ${companyNameOf(s)}` : ""} ·{" "}
                           {s.workType}
