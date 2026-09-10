@@ -1,7 +1,8 @@
 import { formatHours, subClock } from "./hours";
-import { BASE_COORDS, BASE_LABEL, BASE_LOCATION_ID, coordsById, coordsOf } from "./geo";
-import { installAddressOf, timeIsDeparture } from "./install";
+import { BASE_COORDS, BASE_LABEL, BASE_LOCATION_ID, coordsOf } from "./geo";
+import { installAddressOf, isReturnToBase, timeIsDeparture } from "./install";
 import { lodgingPlace } from "./lodging";
+import { stopDate } from "./routeDays";
 import type { AppData, Route, Stop } from "./types";
 
 export type EtaPoint = {
@@ -56,48 +57,59 @@ export function stopDestPoint(data: AppData, stop: Stop): EtaPoint {
   };
 }
 
-export function lastWorkOrigin(
-  data: AppData,
-  route?: Route | null,
-): EtaPoint | null {
-  if (!route) return null;
-  const last = data.stops
+function stopsOfRoute(data: AppData, route: Route) {
+  return data.stops
     .filter((s) => s.routeId === route.id)
-    .sort((a, b) => a.order - b.order)
-    .slice()
-    .reverse()
-    .find(
-      (s) =>
-        s.locationId !== BASE_LOCATION_ID && s.workType !== "Regreso a base",
-    );
-  if (!last) return null;
-  const point = stopDestPoint(data, last);
+    .sort((a, b) => {
+      const byDate = stopDate(a, route).localeCompare(stopDate(b, route));
+      return byDate || a.order - b.order;
+    });
+}
+
+function isFieldStop(stop: Stop) {
+  return stop.locationId !== BASE_LOCATION_ID && !isReturnToBase(stop.workType);
+}
+
+function labeledFieldOrigin(data: AppData, stop: Stop): EtaPoint {
+  const point = stopDestPoint(data, stop);
   const city =
-    last.city?.trim() ||
-    data.locations.find((l) => l.id === last.locationId)?.name ||
-    last.locationId;
+    stop.city?.trim() ||
+    data.locations.find((l) => l.id === stop.locationId)?.name ||
+    stop.locationId;
   return {
     ...point,
     label: `${city} (última locación)`,
   };
 }
 
-export function originForRoute(data: AppData, route?: Route | null): EtaPoint {
-  if (!route) return BASE_POINT;
-  const last = data.stops
-    .filter((s) => s.routeId === route.id)
-    .sort((a, b) => a.order - b.order)
-    .at(-1);
-  if (!last) {
-    return coordsById(data, "loc-base")
-      ? { ...BASE_POINT, lat: coordsById(data, "loc-base")![0], lng: coordsById(data, "loc-base")![1] }
-      : BASE_POINT;
-  }
-  const point = stopDestPoint(data, last);
-  return {
-    ...point,
-    label: `${last.city?.trim() || data.locations.find((l) => l.id === last.locationId)?.name || last.locationId} (parada ${last.order})`,
-  };
+export function lastFieldStop(
+  data: AppData,
+  route?: Route | null,
+  asOfDate?: string,
+): Stop | undefined {
+  if (!route) return undefined;
+  const stops = stopsOfRoute(data, route);
+  const relevant = asOfDate
+    ? stops.filter((s) => stopDate(s, route) <= asOfDate)
+    : stops;
+  return [...relevant].reverse().find(isFieldStop);
+}
+
+export function lastWorkOrigin(
+  data: AppData,
+  route?: Route | null,
+  asOfDate?: string,
+): EtaPoint | null {
+  const last = lastFieldStop(data, route, asOfDate);
+  return last ? labeledFieldOrigin(data, last) : null;
+}
+
+export function originForRoute(
+  data: AppData,
+  route?: Route | null,
+  asOfDate?: string,
+): EtaPoint {
+  return lastWorkOrigin(data, route, asOfDate) ?? BASE_POINT;
 }
 
 export function destForDraft(

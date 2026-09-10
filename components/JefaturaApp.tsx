@@ -176,7 +176,7 @@ export function JefaturaApp({ initialTab }: { initialTab?: string }) {
   const jobbing = Boolean(selectedOrder);
   const returning = isReturnToBase(workType);
   const openOrders = pendingWorkOrders(data);
-  const returnOrigin = lastWorkOrigin(data, preview);
+  const returnOrigin = lastWorkOrigin(data, preview, date);
   const resting = preview ? isRestDay(preview, date) : false;
   const canMarkRest = preview ? canRestOn(data, preview, date) : false;
 
@@ -542,7 +542,7 @@ export function JefaturaApp({ initialTab }: { initialTab?: string }) {
                   origin={
                     returning
                       ? (returnOrigin ?? BASE_POINT)
-                      : originForRoute(data, preview)
+                      : originForRoute(data, preview, date)
                   }
                   dest={
                     returning
