@@ -1,5 +1,5 @@
 import { formatHours, subClock } from "./hours";
-import { BASE_COORDS, BASE_LABEL, BASE_LOCATION_ID, coordsOf } from "./geo";
+import { BASE_COORDS, BASE_LABEL, BASE_LOCATION_ID, coordsOf, haversineKm } from "./geo";
 import { installAddressOf, isReturnToBase, timeIsDeparture } from "./install";
 import { lodgingPlace } from "./lodging";
 import { stopDate } from "./routeDays";
@@ -39,16 +39,25 @@ export function formatEta(
   return `${prefix} ${clock} · ${formatHours(result.minutes)} · ${Math.round(result.km)} km`;
 }
 
+function nearBase(lat?: number, lng?: number) {
+  if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) {
+    return false;
+  }
+  return haversineKm({ lat, lng }, BASE_COORDS) < 40;
+}
+
 export function stopDestPoint(data: AppData, stop: Stop): EtaPoint {
   const loc = data.locations.find((l) => l.id === stop.locationId);
   const city = stop.city?.trim() || loc?.name || "Chile";
   const address = lodgingPlace(stop) || installAddressOf(stop);
-  const coords =
+  const locCoords = loc ? coordsOf(loc) : null;
+  const stored =
     stop.destLat != null && stop.destLng != null
       ? ([stop.destLat, stop.destLng] as [number, number])
-      : loc
-        ? coordsOf(loc)
-        : null;
+      : null;
+  const field = isFieldStop(stop);
+  const storedOk = Boolean(stored && !(field && nearBase(stored[0], stored[1])));
+  const coords = storedOk ? stored : locCoords;
   return {
     label: address || city,
     query: address ? `${address}, ${city}, Chile` : `${city}, Chile`,
@@ -127,11 +136,16 @@ export function destForDraft(
   const city = input.city?.trim() || loc?.name || "Chile";
   const address = (input.lodgingPlan || input.installAddress || "").trim();
   const coords = loc ? coordsOf(loc) : null;
+  const locIsField = Boolean(loc && loc.id !== BASE_LOCATION_ID);
+  const pinLat =
+    locIsField && nearBase(input.lat, input.lng) ? undefined : input.lat;
+  const pinLng =
+    locIsField && nearBase(input.lat, input.lng) ? undefined : input.lng;
   return {
     label: address || city,
     query: address ? `${address}, ${city}, Chile` : `${city}, Chile`,
-    lat: input.lat ?? (address ? undefined : coords?.[0]),
-    lng: input.lng ?? (address ? undefined : coords?.[1]),
+    lat: pinLat ?? (address ? undefined : coords?.[0]),
+    lng: pinLng ?? (address ? undefined : coords?.[1]),
   };
 }
 
