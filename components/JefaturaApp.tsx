@@ -631,7 +631,12 @@ export function JefaturaApp({ initialTab }: { initialTab?: string }) {
                 : ""}
             </p>
             {preview ? (
-              <RouteTimeline data={data} route={preview} compact />
+              <RouteTimeline
+                data={data}
+                route={preview}
+                compact
+                onRemoveStop={removeStop}
+              />
             ) : (
               <p className="rounded-2xl border border-dashed border-stone-300 bg-white p-6 text-sm text-stone-500">
                 No hay paradas para esta fecha.
@@ -685,10 +690,12 @@ export function JefaturaApp({ initialTab }: { initialTab?: string }) {
                           </button>
                           <button
                             type="button"
-                            className="text-xs text-red-700 underline"
+                            className="text-xs font-semibold text-red-700 underline"
                             onClick={() => removeStop(s.id)}
                           >
-                            Quitar
+                            {s.workOrderId
+                              ? `Quitar ${s.workOrderId}`
+                              : "Quitar parada"}
                           </button>
                         </div>
                       </div>

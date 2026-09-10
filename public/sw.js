@@ -1,5 +1,5 @@
-const CACHE = "despacho-offline-v1";
-const PRECACHE = ["/", "/tecnico", "/jefatura", "/manifest.webmanifest"];
+const CACHE = "despacho-offline-v2";
+const PRECACHE = ["/", "/tecnico", "/jefatura"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -24,7 +24,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
-  if (url.pathname.startsWith("/_next/webpack-hmr")) return;
+  if (url.pathname === "/sw.js" || url.pathname.startsWith("/_next/webpack-hmr")) return;
 
   event.respondWith(
     fetch(request)

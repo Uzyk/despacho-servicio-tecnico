@@ -1232,6 +1232,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         bump((d) => {
           const stop = d.stops.find((s) => s.id === stopId);
           if (!stop) return d;
+          const route = d.routes.find((r) => r.id === stop.routeId);
+          if (route && !isRouteOpen(route)) return d;
           const stops = dropTravelFrom(
             d.stops
               .filter((s) => s.id !== stopId)

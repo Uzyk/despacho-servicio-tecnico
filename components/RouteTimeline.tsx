@@ -16,10 +16,12 @@ export function RouteTimeline({
   data,
   route,
   compact,
+  onRemoveStop,
 }: {
   data: AppData;
   route: Route;
   compact?: boolean;
+  onRemoveStop?: (stopId: string) => void;
 }) {
   const lead = route.leadId
     ? nameOf(data.technicians, route.leadId)
@@ -136,6 +138,15 @@ export function RouteTimeline({
                   <p className="text-xs font-medium text-sky-800">
                     {clockHint}
                   </p>
+                ) : null}
+                {onRemoveStop ? (
+                  <button
+                    type="button"
+                    className="mt-1 text-xs font-semibold text-red-700 underline"
+                    onClick={() => onRemoveStop(s.id)}
+                  >
+                    {s.workOrderId ? `Quitar ${s.workOrderId} de la ruta` : "Quitar parada"}
+                  </button>
                 ) : null}
               </div>
             </li>
