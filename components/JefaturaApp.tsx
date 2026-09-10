@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { AppShell, type JefaturaTab } from "./AppShell";
 import {
   dayFromIso,
   formatDayPretty,
@@ -87,18 +87,10 @@ import { CrewPick } from "./CrewPick";
 import { ReplaceForm } from "./ReplaceForm";
 import { RouteTimeline } from "./RouteTimeline";
 import { OrdersBoard } from "./OrdersBoard";
-import { Card, Field, GhostButton, Input, PrimaryButton, Select } from "./ui";
+import { PeopleDirectory } from "./PeopleDirectory";
+import { Card, Field, GhostButton, Input, PageTitle, PrimaryButton, Select } from "./ui";
 
-type Tab =
-  | "vivo"
-  | "rutas"
-  | "asignar"
-  | "armadas"
-  | "calendario"
-  | "desempeno"
-  | "historial"
-  | "ot"
-  | "catalogos";
+type Tab = JefaturaTab;
 
 const TABS: Tab[] = [
   "vivo",
@@ -109,6 +101,7 @@ const TABS: Tab[] = [
   "calendario",
   "desempeno",
   "historial",
+  "directorio",
   "catalogos",
 ];
 
@@ -137,6 +130,7 @@ export function JefaturaApp({ initialTab }: { initialTab?: string }) {
     reset,
   } = useStore();
   const [tab, setTab] = useState<Tab>(() => asTab(initialTab));
+  const [dirQuery, setDirQuery] = useState("");
 
   const [date, setDate] = useState(() => nearestWorkday(isoDate()));
   const [day, setDay] = useState<Day>(
@@ -291,53 +285,51 @@ export function JefaturaApp({ initialTab }: { initialTab?: string }) {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6">
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-gold">Jefatura</p>
-          <h1 className="text-2xl font-bold text-navy">Despacho de servicio técnico</h1>
-        </div>
-        <div className="flex gap-2">
-          <Link href="/" className="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-navy">
-            Cambiar rol
-          </Link>
-          <GhostButton onClick={reset}>Restablecer demo</GhostButton>
-        </div>
-      </header>
-
-      <nav className="mb-6 grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-9">
-        {(
-          [
-            ["vivo", "En vivo"],
-            ["ot", "OT"],
-            ["rutas", "Armar"],
-            ["asignar", "Cuadrilla"],
-            ["armadas", "Rutas"],
-            ["calendario", "Calendario"],
-            ["desempeno", "Desempeño"],
-            ["historial", "Historial"],
-            ["catalogos", "Catálogos"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={`rounded-xl px-3 py-3 text-sm font-semibold ${
-              tab === id ? "bg-navy text-white" : "bg-white text-navy ring-1 ring-stone-200"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
-
-      {tab === "vivo" ? <LiveBoard /> : null}
-      {tab === "ot" ? <OrdersBoard /> : null}
-      {tab === "calendario" ? <CalendarBoard /> : null}
+    <AppShell
+      tab={tab}
+      onTab={setTab}
+      onReset={reset}
+      onSearch={(query) => {
+        setDirQuery(query);
+        setTab("directorio");
+      }}
+    >
+      {tab === "vivo" ? <LiveBoard onOpenTab={setTab} /> : null}
+      {tab === "ot" ? (
+        <>
+          <PageTitle
+            title="Órdenes de trabajo"
+            hint="Crea OT y asígnalas al armar una ruta"
+          />
+          <OrdersBoard />
+        </>
+      ) : null}
+      {tab === "calendario" ? (
+        <>
+          <PageTitle
+            title="Calendario"
+            hint="Vista semanal de rutas y paradas"
+          />
+          <CalendarBoard />
+        </>
+      ) : null}
       {tab === "desempeno" ? <PerformanceBoard /> : null}
-      {tab === "historial" ? <HistoryBoard /> : null}
+      {tab === "directorio" ? (
+        <PeopleDirectory initialQuery={dirQuery} />
+      ) : null}
+      {tab === "historial" ? (
+        <>
+          <PageTitle title="Historial" hint="Rutas ya finalizadas" />
+          <HistoryBoard />
+        </>
+      ) : null}
 
       {tab === "rutas" ? (
+        <>
+          <PageTitle
+            title="Armar ruta"
+            hint="Nueva parada, OT o traslado sobre una ruta abierta"
+          />
         <div className="grid gap-5 lg:grid-cols-2">
           <Card title="Nueva parada">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -793,9 +785,15 @@ export function JefaturaApp({ initialTab }: { initialTab?: string }) {
               : null}
           </div>
         </div>
+        </>
       ) : null}
 
       {tab === "asignar" ? (
+        <>
+          <PageTitle
+            title="Cuadrilla"
+            hint="Encargado, vehículo y técnicos de la ruta"
+          />
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="space-y-5">
           <Card title="Armar la cuadrilla">
@@ -1020,15 +1018,25 @@ export function JefaturaApp({ initialTab }: { initialTab?: string }) {
             ) : null}
           </div>
         </div>
+        </>
       ) : null}
 
-      {tab === "catalogos" ? <CatalogBoard /> : null}
+      {tab === "catalogos" ? (
+        <>
+          <PageTitle
+            title="Catálogos"
+            hint="Técnicos, vehículos y locaciones"
+          />
+          <CatalogBoard />
+        </>
+      ) : null}
 
       {tab === "armadas" ? (
         <section className="space-y-4">
-          <div>
-            <h2 className="text-lg font-bold text-navy">Rutas</h2>
-          </div>
+          <PageTitle
+            title="Rutas abiertas"
+            hint="Itinerario completo y cierre a histórico"
+          />
           {openRoutes(data).length === 0 ? (
             <p className="rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center text-stone-500">
               No hay rutas abiertas.
@@ -1057,6 +1065,6 @@ export function JefaturaApp({ initialTab }: { initialTab?: string }) {
           )}
         </section>
       ) : null}
-    </div>
+    </AppShell>
   );
 }

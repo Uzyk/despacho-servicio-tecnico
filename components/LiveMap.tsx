@@ -26,7 +26,13 @@ function pinIcon(phase: TechPhase, label: string) {
   });
 }
 
-export function LiveMap({ pins }: { pins: MapPin[] }) {
+export function LiveMap({
+  pins,
+  tall = false,
+}: {
+  pins: MapPin[];
+  tall?: boolean;
+}) {
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
@@ -43,9 +49,12 @@ export function LiveMap({ pins }: { pins: MapPin[] }) {
     }).addTo(map);
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
-    const id = window.setTimeout(() => map.invalidateSize(), 80);
+    const id = window.setTimeout(() => map.invalidateSize(), 120);
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(el);
     return () => {
       window.clearTimeout(id);
+      ro.disconnect();
       map.remove();
       mapRef.current = null;
       layerRef.current = null;
@@ -90,12 +99,12 @@ export function LiveMap({ pins }: { pins: MapPin[] }) {
   }, [pins]);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 px-4 py-3">
         <div>
-          <h2 className="text-lg font-bold text-navy">Mapa GPS</h2>
+          <h2 className="text-sm font-semibold text-navy">Mapa GPS</h2>
         </div>
-        <ul className="flex flex-wrap gap-3 text-xs font-semibold text-stone-600">
+        <ul className="flex flex-wrap gap-3 text-[11px] font-medium text-stone-500">
           <li className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-gold" /> Base INACAP
           </li>
@@ -113,7 +122,7 @@ export function LiveMap({ pins }: { pins: MapPin[] }) {
           </li>
         </ul>
       </div>
-      <div ref={elRef} className="z-0 h-80 w-full" />
+      <div ref={elRef} className={`z-0 w-full ${tall ? "h-[min(62vh,560px)]" : "h-80"}`} />
     </div>
   );
 }

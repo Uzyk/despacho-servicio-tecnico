@@ -9,14 +9,26 @@ import { nameOf, useStore } from "@/lib/store";
 import { stopLocality } from "@/lib/regions";
 import { CloseEvidence } from "./CloseEvidence";
 
-export function HistoryBoard() {
+export function HistoryBoard({
+  technicianId,
+}: {
+  technicianId?: string;
+}) {
   const { data } = useStore();
-  const rows = finishedRoutes(data);
+  const rows = finishedRoutes(data).filter((route) =>
+    technicianId
+      ? data.assignments.some(
+          (a) => a.routeId === route.id && a.technicianId === technicianId,
+        )
+      : true,
+  );
 
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-lg font-bold text-navy">Histórico de rutas</h2>
+        <h2 className="text-lg font-bold text-navy">
+          {technicianId ? "Mis rutas cerradas" : "Histórico de rutas"}
+        </h2>
       </div>
       {rows.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center text-stone-500">

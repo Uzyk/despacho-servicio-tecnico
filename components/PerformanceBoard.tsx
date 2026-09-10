@@ -11,41 +11,53 @@ import {
   formatWhen,
   fulfillmentSlices,
   hoursByLocation,
+  techStats,
 } from "@/lib/record";
 import { downloadTechMonthReport, monthChoices } from "@/lib/report";
 import { nameOf, useStore } from "@/lib/store";
 import { BarChart, DonutChart } from "./Charts";
 import { Field, GhostButton, Select } from "./ui";
 
-export function PerformanceBoard() {
+export function PerformanceBoard({
+  technicianId,
+}: {
+  technicianId?: string;
+}) {
   const { data } = useStore();
-  const rows = allTechStats(data);
+  const rows = technicianId
+    ? [techStats(data, technicianId)]
+    : allTechStats(data);
   const months = monthChoices();
-  const [openId, setOpenId] = useState("");
+  const [openId, setOpenId] = useState(technicianId ?? "");
   const [month, setMonth] = useState(currentMonthKey);
+  const personal = Boolean(technicianId);
 
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h2 className="text-lg font-bold text-navy">Desempeño del personal</h2>
-        <div className="w-56">
-          <Field label="Mes del informe">
-            <Select
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-            >
-              {months.map((item) => (
-                <option key={item.key} value={item.key}>
-                  {item.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
+        <h2 className="text-xl font-semibold tracking-tight text-navy">
+          {personal ? "Mi desempeño" : "Desempeño del personal"}
+        </h2>
+        {personal ? null : (
+          <div className="w-56">
+            <Field label="Mes del informe">
+              <Select
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+              >
+                {months.map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {item.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+        )}
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         {rows.map((row) => {
-          const open = openId === row.technicianId;
+          const open = personal || openId === row.technicianId;
           const slices = fulfillmentSlices(row);
           const donePct =
             row.assigned > 0
@@ -54,7 +66,7 @@ export function PerformanceBoard() {
           return (
             <article
               key={row.technicianId}
-              className={`rounded-2xl border border-stone-200 bg-white p-4 shadow-sm ${
+              className={`rounded-xl border border-stone-200 bg-white p-4 shadow-sm ${
                 open ? "lg:col-span-2" : ""
               }`}
             >
@@ -62,23 +74,30 @@ export function PerformanceBoard() {
                 <button
                   type="button"
                   className="min-w-0 flex-1 text-left"
-                  onClick={() => setOpenId(open ? "" : row.technicianId)}
+                  onClick={() => {
+                    if (personal) return;
+                    setOpenId(open ? "" : row.technicianId);
+                  }}
                 >
                   <h3 className="font-bold text-navy">
                     {nameOf(data.technicians, row.technicianId)}
                   </h3>
-                  <span className="text-xs font-semibold text-gold">
-                    {open ? "Ocultar" : "Ver ficha"}
-                  </span>
+                  {personal ? null : (
+                    <span className="text-xs font-semibold text-gold">
+                      {open ? "Ocultar" : "Ver ficha"}
+                    </span>
+                  )}
                 </button>
-                <GhostButton
-                  type="button"
-                  onClick={() =>
-                    downloadTechMonthReport(data, row.technicianId, month)
-                  }
-                >
-                  Descargar informe
-                </GhostButton>
+                {personal ? null : (
+                  <GhostButton
+                    type="button"
+                    onClick={() =>
+                      downloadTechMonthReport(data, row.technicianId, month)
+                    }
+                  >
+                    Descargar informe
+                  </GhostButton>
+                )}
               </div>
               <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
                 <Stat label="Rutas" value={String(row.assigned)} />

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   formatDayPretty,
@@ -39,12 +38,18 @@ import type { AppData, Route } from "@/lib/types";
 import { nameOf, useStore } from "@/lib/store";
 import { stopLocality } from "@/lib/regions";
 import { vehicleNameOf } from "@/lib/vehicles";
-import { Card, Field, GhostButton, PrimaryButton, Select } from "./ui";
+import { GhostButton, PageTitle, PrimaryButton } from "./ui";
 import { OfflineBanner } from "./OfflineBanner";
 import { StopCheckin } from "./StopCheckin";
+import { CalendarBoard } from "./CalendarBoard";
+import { HistoryBoard } from "./HistoryBoard";
+import { PerformanceBoard } from "./PerformanceBoard";
+import { TechHome } from "./TechHome";
+import { PeopleDirectory } from "./PeopleDirectory";
+import { TechRoutes } from "./TechRoutes";
+import { TechShell, type TechTab } from "./TechShell";
 
 const WEEK = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-const TECH_KEY = "despacho-inacap-tech";
 
 function routesByDate(data: AppData, routes: Route[]) {
   const map = new Map<string, Route[]>();
@@ -285,16 +290,26 @@ function TechCalendar({
   );
 }
 
-export function TecnicoApp() {
-  const { data, ready } = useStore();
-  const [techId, setTechId] = useState(data.technicians[0]?.id ?? "T01");
-  const [techReady, setTechReady] = useState(false);
+const TABS: TechTab[] = [
+  "inicio",
+  "hoy",
+  "rutas",
+  "calendario",
+  "desempeno",
+  "historial",
+  "directorio",
+];
+
+function asTab(value?: string): TechTab {
+  return TABS.includes(value as TechTab) ? (value as TechTab) : "inicio";
+}
+
+function TechItinerary({ techId }: { techId: string }) {
+  const { data } = useStore();
   const [pickedDate, setPickedDate] = useState<string | null>(null);
 
+  const selectedId = techId;
   const actives = data.technicians.filter((t) => t.active);
-  const selectedId = actives.some((t) => t.id === techId)
-    ? techId
-    : (actives[0]?.id ?? "");
   const openMine = useMemo(() => {
     if (!selectedId) return [];
     return techOpenRoutes(data, selectedId).filter((route) => {
@@ -317,27 +332,8 @@ export function TecnicoApp() {
   const showCalendar = allDates.length > 1;
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(TECH_KEY);
-      if (saved) setTechId(saved);
-    } catch {
-      /* ignore */
-    }
-    setTechReady(true);
-  }, []);
-
-  useEffect(() => {
     setPickedDate(null);
   }, [selectedId]);
-
-  useEffect(() => {
-    if (!techReady || !selectedId) return;
-    try {
-      window.localStorage.setItem(TECH_KEY, selectedId);
-    } catch {
-      /* ignore */
-    }
-  }, [selectedId, techReady]);
 
   const detail = useMemo(() => {
     if (!selectedId) return [];
@@ -356,56 +352,32 @@ export function TecnicoApp() {
   const totalMins = detail.reduce((sum, row) => sum + row.minutes, 0);
   const closedJobs = detail.filter((row) => row.minutes > 0).length;
 
-  if (!ready) return <p className="p-8 text-stone-600">Cargando…</p>;
-
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6">
-      <header className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-gold">Técnico</p>
-          <h1 className="text-2xl font-bold text-navy">Tu jornada</h1>
-        </div>
-        <Link
-          href="/"
-          className="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-navy"
-        >
-          Cambiar rol
-        </Link>
-      </header>
-
-      <OfflineBanner />
-
-      <Card>
-        <Field label="Soy">
-          <Select
-            value={selectedId}
-            onChange={(e) => setTechId(e.target.value)}
-          >
-            {actives.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </Card>
-
+    <section className="space-y-5">
+      <PageTitle
+        title="Hoy en terreno"
+        hint={`Itinerario · ${formatDayPretty(focusDate)}`}
+      />
       {openMine.length === 0 ? (
-        <p className="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center text-stone-500">
+        <p className="rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-stone-500">
           {actives.find((t) => t.id === selectedId)?.name ?? "Este técnico"} no
           tiene una ruta abierta.
         </p>
       ) : (
         <>
           {totalMins > 0 ? (
-            <section className="mt-5 rounded-2xl bg-navy p-5 text-white shadow-sm">
-              <p className="text-sm text-blue-100">Horas registradas</p>
-              <p className="mt-1 text-3xl font-bold">{formatHours(totalMins)}</p>
-              <p className="mt-1 text-sm text-blue-100">
+            <section className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+              <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
+                Horas registradas
+              </p>
+              <p className="mt-1 text-2xl font-semibold tracking-tight text-navy">
+                {formatHours(totalMins)}
+              </p>
+              <p className="mt-1 text-sm text-stone-500">
                 {closedJobs} trabajo{closedJobs === 1 ? "" : "s"} con llegada y
                 salida
               </p>
-              <ul className="mt-4 space-y-2 border-t border-white/20 pt-3 text-sm">
+              <ul className="mt-4 space-y-2 border-t border-stone-100 pt-3 text-sm">
                 {detail
                   .filter((row) => row.minutes > 0)
                   .map((row) => (
@@ -414,7 +386,7 @@ export function TecnicoApp() {
                         {stopLocality(data, row.stop)} ·{" "}
                         {row.progress?.arrivedAt}–{row.progress?.leftAt}
                       </span>
-                      <span className="font-semibold">
+                      <span className="font-semibold text-navy">
                         {formatHours(row.minutes)}
                       </span>
                     </li>
@@ -423,10 +395,7 @@ export function TecnicoApp() {
             </section>
           ) : null}
 
-          <div className="mt-6 space-y-8">
-            <p className="text-sm font-semibold text-navy">
-              Itinerario · {formatDayPretty(focusDate)}
-            </p>
+          <div className="space-y-8">
             {routesToday.map((route) => (
               <TechRouteDay
                 key={route.id}
@@ -445,6 +414,49 @@ export function TecnicoApp() {
           </div>
         </>
       )}
-    </div>
+    </section>
+  );
+}
+
+export function TecnicoApp({ initialTab }: { initialTab?: string }) {
+  const { ready, account } = useStore();
+  const [tab, setTab] = useState<TechTab>(() => asTab(initialTab));
+  const [dirQuery, setDirQuery] = useState("");
+  const techId = account?.technicianId ?? "";
+
+  if (!ready) return <p className="p-8 text-stone-600">Cargando…</p>;
+
+  return (
+    <TechShell
+      tab={tab}
+      onTab={setTab}
+      onSearch={(query) => {
+        setDirQuery(query);
+        setTab("directorio");
+      }}
+    >
+      <OfflineBanner />
+      {!techId ? (
+        <p className="rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-stone-500">
+          Esta cuenta no está vinculada a un técnico.
+        </p>
+      ) : (
+        <>
+          {tab === "inicio" ? <TechHome onOpenTab={setTab} /> : null}
+          {tab === "hoy" ? <TechItinerary techId={techId} /> : null}
+          {tab === "rutas" ? <TechRoutes /> : null}
+          {tab === "calendario" ? (
+            <CalendarBoard technicianId={techId} />
+          ) : null}
+          {tab === "desempeno" ? (
+            <PerformanceBoard technicianId={techId} />
+          ) : null}
+          {tab === "historial" ? <HistoryBoard technicianId={techId} /> : null}
+          {tab === "directorio" ? (
+            <PeopleDirectory initialQuery={dirQuery} />
+          ) : null}
+        </>
+      )}
+    </TechShell>
   );
 }

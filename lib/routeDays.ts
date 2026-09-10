@@ -69,9 +69,16 @@ export function formatRouteSpan(data: AppData, route: Route) {
   return `${formatDayPretty(dates[0])} – ${formatDayPretty(dates[dates.length - 1])}`;
 }
 
-export function routesByActivityDate(data: AppData) {
+export function routesByActivityDate(data: AppData, technicianId?: string) {
   const map = new Map<string, Route[]>();
-  for (const route of data.routes) {
+  const routes = technicianId
+    ? data.routes.filter((route) =>
+        data.assignments.some(
+          (a) => a.routeId === route.id && a.technicianId === technicianId,
+        ),
+      )
+    : data.routes;
+  for (const route of routes) {
     for (const iso of routeDates(data, route)) {
       const list = map.get(iso) ?? [];
       list.push(route);

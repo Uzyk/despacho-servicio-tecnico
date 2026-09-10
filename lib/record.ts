@@ -22,6 +22,22 @@ export function isRouteOpen(route: { status?: string; closedAt?: number }) {
   return route.status === "abierta";
 }
 
+export function techAssignedRoutes(data: AppData, technicianId: string) {
+  const ids = new Set(
+    data.assignments
+      .filter((a) => a.technicianId === technicianId)
+      .map((a) => a.routeId),
+  );
+  return data.routes
+    .filter((r) => ids.has(r.id))
+    .sort((a, b) => {
+      const openA = isRouteOpen(a) ? 0 : 1;
+      const openB = isRouteOpen(b) ? 0 : 1;
+      if (openA !== openB) return openA - openB;
+      return (b.closedAt ?? 0) - (a.closedAt ?? 0) || a.id.localeCompare(b.id);
+    });
+}
+
 export function techOpenRoutes(data: AppData, technicianId: string) {
   const archived = new Set(
     (data.events ?? [])
@@ -138,10 +154,14 @@ export function eventsOf(data: AppData, technicianId: string) {
 export function techStats(data: AppData, technicianId: string): TechStats {
   const events = eventsOf(data, technicianId);
   const assigned = new Set(
-    events
-      .filter((e) => e.kind === "asignado" || e.kind === "entra")
-      .map((e) => e.routeId)
-      .filter(Boolean),
+    [
+      ...events
+        .filter((e) => e.kind === "asignado" || e.kind === "entra")
+        .map((e) => e.routeId),
+      ...data.assignments
+        .filter((a) => a.technicianId === technicianId)
+        .map((a) => a.routeId),
+    ].filter(Boolean),
   ).size;
   const minutes = hoursForStops(data.stops, data.progress ?? [], technicianId).reduce(
     (sum, row) => sum + row.minutes,

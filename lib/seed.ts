@@ -1,6 +1,12 @@
+import {
+  ADMIN_EMAIL,
+  ADMIN_PASSWORD_HASH,
+  emailFromName,
+  makeAccount,
+} from "./auth";
 import { upcomingWeekday } from "./calendar";
 import { regionLocations } from "./regions";
-import type { AppData } from "./types";
+import type { Account, AppData } from "./types";
 
 export const SEED_TECHNICIANS = [
   "Matías Abello",
@@ -14,6 +20,58 @@ export const SEED_TECHNICIANS = [
   "Abel Rocha",
   "Jeremías Villegas",
 ] as const;
+
+const JEFATURA_SEED = [
+  {
+    id: "u-pablo",
+    name: "Pablo Leiva",
+    phone: "+56 9 6123 4501",
+    title: "Coordinador de operaciones",
+  },
+  {
+    id: "u-francisca",
+    name: "Francisca Lagos",
+    phone: "+56 9 6123 4502",
+    title: "Jefa de despacho",
+  },
+  {
+    id: "u-victor",
+    name: "Víctor Godoy",
+    phone: "+56 9 6123 4503",
+    title: "Supervisor de terreno",
+  },
+] as const;
+
+function seedAccounts(): Account[] {
+  const admin = makeAccount({
+    id: "u-admin",
+    email: ADMIN_EMAIL,
+    role: "admin",
+    name: "Administrador",
+    phone: "+56 9 2000 0001",
+    title: "Administración de cuentas",
+    passwordHash: ADMIN_PASSWORD_HASH,
+  });
+  const jefatura = JEFATURA_SEED.map((person) =>
+    makeAccount({
+      ...person,
+      email: emailFromName(person.name),
+      role: "jefatura",
+    }),
+  );
+  const technicians = SEED_TECHNICIANS.map((name, i) =>
+    makeAccount({
+      id: `u-t${String(i + 1).padStart(2, "0")}`,
+      email: emailFromName(name),
+      role: "tecnico",
+      name,
+      phone: `+56 9 7${String(100 + i).slice(-3)} ${String(4500 + i * 17).slice(-4)}`,
+      title: "Técnico de terreno",
+      technicianId: `T${String(i + 1).padStart(2, "0")}`,
+    }),
+  );
+  return [admin, ...jefatura, ...technicians];
+}
 
 export const SEED: AppData = {
   technicians: SEED_TECHNICIANS.map((name, i) => ({
@@ -149,6 +207,8 @@ export const SEED: AppData = {
   ],
   progress: [],
   events: [],
+  accounts: seedAccounts(),
+  invites: [],
   workOrders: [
     {
       id: "OT-001",

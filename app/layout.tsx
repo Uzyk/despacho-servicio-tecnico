@@ -9,7 +9,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Despacho servicio técnico",
+  title: "Despacho técnico",
   description:
     "Gestión tecnológica de rutas, locaciones y viáticos para el estudio de caso INACAP.",
   manifest: "/manifest.webmanifest",

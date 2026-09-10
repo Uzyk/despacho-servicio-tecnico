@@ -1,11 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --navy: #0f3a5f;
-  --navy-2: #1a5276;
+  --navy: #0e3558;
+  --navy-2: #164a73;
   --gold: #c9a227;
-  --paper: #f4f0e6;
+  --paper: #f3f5f8;
   --ink: #1c1917;
+  --line: #e5e7eb;
 }
 
 @theme inline {
@@ -23,6 +24,10 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+.avatar-hex {
+  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+}
+
 button,
 select,
 input,
@@ -34,7 +39,7 @@ textarea {
   background: #c9a227;
   border: none;
   border-radius: 999px;
-  color: #0f3a5f;
+  color: #0e3558;
   font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;
@@ -43,4 +48,8 @@ textarea {
 
 .leaflet-tooltip.base-map-label::before {
   display: none;
+}
+
+.leaflet-container {
+  font-family: inherit;
 }

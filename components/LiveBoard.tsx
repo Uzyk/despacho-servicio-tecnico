@@ -2,12 +2,15 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import { formatRouteSpan } from "@/lib/routeDays";
+import { formatDayPretty, isoDate } from "@/lib/calendar";
 import { formatGps, livePins } from "@/lib/geo";
 import { installDetail, timeIsDeparture } from "@/lib/install";
 import { lodgingPlace, needsLodging } from "@/lib/lodging";
 import { formatHours, isStopAssignedTo, stopAssignees } from "@/lib/hours";
-import { hasAckedRoute, pendingAcks, routeVehicleId } from "@/lib/record";
+import { pendingWorkOrders } from "@/lib/orders";
+import { vehicleDutyOf } from "@/lib/availability";
+import { hasAckedRoute, openRoutes, pendingAcks, routeVehicleId } from "@/lib/record";
+import { formatRouteSpan } from "@/lib/routeDays";
 import {
   liveRoutes,
   PHASE_LABEL,
@@ -18,16 +21,26 @@ import {
 import { nameOf, useStore } from "@/lib/store";
 import { stopLocality } from "@/lib/regions";
 import { vehicleNameOf } from "@/lib/vehicles";
+import type { JefaturaTab } from "./AppShell";
 import { PrimaryButton } from "./ui";
 import { CloseEvidence } from "./CloseEvidence";
 import { ReplaceForm } from "./ReplaceForm";
+import {
+  MonthBanner,
+  PersonRow,
+  PortalCard,
+  PortalHeroCard,
+  PortalSection,
+  ProgressRing,
+  TaskRow,
+} from "./PortalDash";
 
 const LiveMap = dynamic(
   () => import("./LiveMap").then((mod) => mod.LiveMap),
   {
     ssr: false,
     loading: () => (
-      <p className="rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center text-stone-500">
+      <p className="rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-stone-500">
         Cargando mapa GPS…
       </p>
     ),
@@ -43,43 +56,201 @@ function useNowMs() {
   return now;
 }
 
-export function LiveBoard() {
-  const { data } = useStore();
+export function LiveBoard({
+  onOpenTab,
+}: {
+  onOpenTab?: (tab: JefaturaTab) => void;
+}) {
+  const { data, account } = useStore();
   const nowMs = useNowMs();
   const rows = liveRoutes(data, nowMs);
   const pins = livePins(data, rows, nowMs);
   const active = rows.filter((row) => row.phase !== "cerrada");
   const closed = rows.filter((row) => row.phase === "cerrada");
   const inField = rows.filter((row) => row.phase === "en_curso").length;
+  const waiting = active.reduce(
+    (n, row) => n + pendingAcks(data, row.route.id).length,
+    0,
+  );
+  const otOpen = pendingWorkOrders(data).length;
+  const vansField = data.vehicles.filter(
+    (v) => vehicleDutyOf(data, v.id) === "en_terreno",
+  ).length;
+  const assigned = new Set(
+    data.assignments
+      .filter((a) => openRoutes(data).some((r) => r.id === a.routeId))
+      .map((a) => a.technicianId),
+  );
+  const techsFree = data.technicians.filter(
+    (t) => t.active && !assigned.has(t.id),
+  ).length;
+  const techsOut = data.technicians.filter(
+    (t) => t.active && assigned.has(t.id),
+  ).length;
+
+  const team = (data.accounts ?? [])
+    .filter((person) => person.role === "tecnico")
+    .slice(0, 4);
+  const tasks: { id: string; label: string; tab: JefaturaTab }[] = [];
+  if (otOpen > 0) {
+    tasks.push({ id: "ot", label: `${otOpen} OT sin asignar`, tab: "ot" });
+  }
+  if (waiting > 0) {
+    tasks.push({
+      id: "ack",
+      label: `${waiting} itinerario${waiting === 1 ? "" : "s"} sin acuse`,
+      tab: "armadas",
+    });
+  }
+  if (techsFree > 0) {
+    tasks.push({
+      id: "crew",
+      label: `${techsFree} técnico${techsFree === 1 ? "" : "s"} disponible${techsFree === 1 ? "" : "s"}`,
+      tab: "asignar",
+    });
+  }
+  const cover =
+    active.length > 0
+      ? Math.round((inField / active.length) * 100)
+      : 0;
 
   return (
-    <section className="space-y-4">
-      <div className="rounded-2xl bg-navy p-5 text-white shadow-sm">
-        <p className="text-3xl font-bold">
-          {inField} ruta{inField === 1 ? "" : "s"} en terreno
-        </p>
-      </div>
-
-      <LiveMap pins={pins} />
-
-      {active.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center text-stone-500">
-          No hay rutas activas.
-        </p>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {active.map((row) => (
-            <LiveRouteCard key={row.route.id} row={row} />
-          ))}
+    <section className="space-y-8">
+      <PortalSection title="Saludo">
+        <div className="rounded-2xl border border-stone-200 bg-white px-5 py-4">
+          {account ? (
+            <PortalHeroCard
+              name={account.name}
+              title={`${account.title} · ${formatDayPretty(isoDate())}`}
+            />
+          ) : (
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight text-navy">
+                Operaciones
+              </h1>
+              <p className="mt-0.5 text-sm text-stone-500">
+                {formatDayPretty(isoDate())} · seguimiento en vivo
+              </p>
+            </div>
+          )}
         </div>
-      )}
+      </PortalSection>
+
+      <PortalSection title="Jornada">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
+        <PortalCard title="Jornada en curso">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm leading-relaxed text-stone-600">
+                {active.length
+                  ? `${inField} ruta${inField === 1 ? "" : "s"} en terreno de ${active.length} abierta${active.length === 1 ? "" : "s"}.`
+                  : "No hay rutas abiertas en este momento."}
+              </p>
+            </div>
+            <div className="text-center">
+              <ProgressRing value={cover} />
+              <p className="mt-1 text-xs font-medium text-stone-500">
+                Avance general
+              </p>
+            </div>
+          </div>
+        </PortalCard>
+        <PortalCard title="Tareas pendientes">
+          {tasks.length === 0 ? (
+            <p className="text-sm text-stone-500">Todo al día.</p>
+          ) : (
+            tasks.map((item, i) => (
+              <TaskRow
+                key={item.id}
+                index={i + 1}
+                label={item.label}
+                onClick={() => onOpenTab?.(item.tab)}
+              />
+            ))
+          )}
+        </PortalCard>
+      </div>
+      </PortalSection>
+
+      <PortalSection title="Equipo">
+      <div className="grid gap-4 xl:grid-cols-[16rem_minmax(0,1fr)]">
+        <PortalCard title="Equipo en terreno">
+          {team.length === 0 ? (
+            <p className="text-sm text-stone-500">Sin técnicos.</p>
+          ) : (
+            <ul>
+              {team.map((person) => (
+                <PersonRow
+                  key={person.id}
+                  photo={person.photo}
+                  name={person.name}
+                  hint={person.technicianId ?? person.title}
+                />
+              ))}
+            </ul>
+          )}
+        </PortalCard>
+        <MonthBanner message="Resalta el cumplimiento de rutas y el acuse de itinerario. El mapa de abajo muestra la operación en vivo." />
+      </div>
+      </PortalSection>
+
+      <PortalSection title="Indicadores">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi
+          label="En terreno"
+          value={String(inField)}
+          hint={`${active.length} ruta${active.length === 1 ? "" : "s"} abierta${active.length === 1 ? "" : "s"}`}
+        />
+        <Kpi
+          label="OT pendientes"
+          value={String(otOpen)}
+          hint="Sin asignar a una ruta"
+          onClick={onOpenTab ? () => onOpenTab("ot") : undefined}
+        />
+        <Kpi
+          label="Cuadrilla"
+          value={`${techsOut} / ${techsOut + techsFree}`}
+          hint={`${techsFree} disponible${techsFree === 1 ? "" : "s"}`}
+          onClick={onOpenTab ? () => onOpenTab("asignar") : undefined}
+        />
+        <Kpi
+          label="Vehículos en ruta"
+          value={String(vansField)}
+          hint={waiting > 0 ? `${waiting} sin acuse` : "Itinerarios vistos"}
+          onClick={onOpenTab ? () => onOpenTab("catalogos") : undefined}
+        />
+      </div>
+      </PortalSection>
+
+      <PortalSection title="Operación en vivo">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(20rem,0.9fr)]">
+        <LiveMap pins={pins} tall />
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-navy">Rutas activas</h2>
+            <span className="text-xs text-stone-500">{active.length}</span>
+          </div>
+          {active.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-sm text-stone-500">
+              No hay rutas activas.
+            </p>
+          ) : (
+            <div className="grid gap-3">
+              {active.map((row) => (
+                <LiveRouteCard key={row.route.id} row={row} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      </PortalSection>
 
       {closed.length > 0 ? (
-        <details className="rounded-2xl border border-stone-200 bg-white p-4">
+        <details className="rounded-xl border border-stone-200 bg-white p-4">
           <summary className="cursor-pointer text-sm font-semibold text-navy">
             Rutas cerradas ({closed.length})
           </summary>
-          <div className="mt-3 grid gap-4 lg:grid-cols-2">
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
             {closed.map((row) => (
               <LiveRouteCard key={row.route.id} row={row} />
             ))}
@@ -88,6 +259,40 @@ export function LiveBoard() {
       ) : null}
     </section>
   );
+}
+
+function Kpi({
+  label,
+  value,
+  hint,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  onClick?: () => void;
+}) {
+  const className =
+    "rounded-xl border border-stone-200 bg-white p-4 text-left shadow-sm";
+  const body = (
+    <>
+      <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight text-navy">
+        {value}
+      </p>
+      <p className="mt-1 text-xs text-stone-500">{hint}</p>
+    </>
+  );
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={`${className} transition hover:border-navy/30`}>
+        {body}
+      </button>
+    );
+  }
+  return <div className={className}>{body}</div>;
 }
 
 function LiveRouteCard({ row }: { row: RouteLive }) {
@@ -102,13 +307,13 @@ function LiveRouteCard({ row }: { row: RouteLive }) {
         : "bg-stone-100 text-stone-600";
 
   return (
-    <article className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+    <article className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="text-xs font-semibold tracking-wide text-gold uppercase">
+          <p className="text-[11px] font-semibold tracking-wide text-stone-400 uppercase">
             {row.route.id} · {formatRouteSpan(data, row.route)}
           </p>
-          <h3 className="text-lg font-bold text-navy">
+          <h3 className="text-base font-semibold text-navy">
             Encargado:{" "}
             {row.route.leadId
               ? nameOf(data.technicians, row.route.leadId)

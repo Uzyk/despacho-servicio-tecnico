@@ -31,10 +31,14 @@ import { isFreeForRoute, isVehicleFreeForRoute, pickFreeVehicleId } from "./avai
 import { hasAckedRoute, isRouteOpen } from "./record";
 import { canRestOn, stopDate } from "./routeDays";
 import { SEED, SEED_TECHNICIANS } from "./seed";
+import { hashPassword, normalizeEmail, SESSION_KEY, avatarDataUrl } from "./auth";
 import type {
+  Account,
+  AccountRole,
   AppData,
   Assignment,
   Day,
+  Invite,
   Location,
   LogEvent,
   RouteAllowances,
@@ -253,6 +257,13 @@ function normalize(data: AppData): AppData {
     kit: Array.isArray(p.kit) ? p.kit : undefined,
   }));
   data.workOrders = syncWorkOrders(data);
+  if (!data.accounts) data.accounts = [];
+  if (!data.invites) data.invites = [];
+  for (const acc of SEED.accounts) {
+    if (!data.accounts.some((a) => a.email === acc.email)) {
+      data.accounts.push(acc);
+    }
+  }
   return data;
 }
 
@@ -284,7 +295,31 @@ function formatFixNote(fix?: GeoFix | null) {
 type Store = {
   data: AppData;
   ready: boolean;
+  account: Account | null;
   reset: () => void;
+  login: (email: string, password: string) => Promise<string | null>;
+  logout: () => void;
+  createInvite: (input: {
+    email: string;
+    name: string;
+    role: Exclude<AccountRole, "admin">;
+  }) => { error?: string; invite?: Invite };
+  acceptInvite: (input: {
+    token: string;
+    password: string;
+    phone: string;
+    photo?: string;
+    name?: string;
+    city?: string;
+  }) => Promise<{ error?: string; account?: Account }>;
+  updateProfile: (input: {
+    name?: string;
+    phone?: string;
+    title?: string;
+    city?: string;
+    photo?: string;
+    password?: string;
+  }) => Promise<string | null>;
   addTechnician: (name: string) => void;
   addLocation: (loc: Omit<Location, "id">) => void;
   addVehicle: (input: {
@@ -504,8 +539,26 @@ function writeStorage(next: AppData) {
   }
 }
 
+function readSessionId() {
+  try {
+    return window.localStorage.getItem(SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionId(id: string | null) {
+  try {
+    if (id) window.localStorage.setItem(SESSION_KEY, id);
+    else window.localStorage.removeItem(SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(() => structuredClone(SEED));
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const channelRef = useRef<BroadcastChannel | null>(null);
 
@@ -523,7 +576,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    setData(load());
+    const next = load();
+    setData(next);
+    const saved = readSessionId();
+    if (saved && next.accounts.some((a) => a.id === saved)) {
+      setSessionId(saved);
+    } else {
+      writeSessionId(null);
+    }
     setReady(true);
   }, []);
 
@@ -592,14 +652,150 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  const account =
+    (data.accounts ?? []).find((a) => a.id === sessionId) ?? null;
+
   const api = useMemo<Store>(
     () => ({
       data,
       ready,
+      account,
       reset: () => {
         const next = withRev(normalize(structuredClone(SEED)));
         persist(next);
         setData(next);
+        if (sessionId && !next.accounts.some((a) => a.id === sessionId)) {
+          writeSessionId(null);
+          setSessionId(null);
+        }
+      },
+      login: async (email, password) => {
+        const hash = await hashPassword(password);
+        const found = data.accounts.find(
+          (a) => a.email === normalizeEmail(email) && a.passwordHash === hash,
+        );
+        if (!found) return "Correo o clave incorrectos.";
+        writeSessionId(found.id);
+        setSessionId(found.id);
+        return null;
+      },
+      logout: () => {
+        writeSessionId(null);
+        setSessionId(null);
+      },
+      createInvite: ({ email, name, role }) => {
+        const cleanEmail = normalizeEmail(email);
+        const cleanName = name.trim();
+        if (!cleanEmail || !cleanEmail.includes("@")) {
+          return { error: "Ingresa un correo válido." };
+        }
+        if (!cleanName) return { error: "Ingresa el nombre de la persona." };
+        if (data.accounts.some((a) => a.email === cleanEmail)) {
+          return { error: "Ese correo ya tiene cuenta." };
+        }
+        if (
+          data.invites.some(
+            (i) => i.email === cleanEmail && !i.usedAt && i.expiresAt > Date.now(),
+          )
+        ) {
+          return { error: "Ya hay una invitación vigente para ese correo." };
+        }
+        const invite: Invite = {
+          id: uid("inv"),
+          token: crypto.randomUUID(),
+          email: cleanEmail,
+          role,
+          name: cleanName,
+          createdAt: Date.now(),
+          expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000,
+        };
+        bump((d) => ({ ...d, invites: [...d.invites, invite] }));
+        return { invite };
+      },
+      acceptInvite: async ({ token, password, phone, photo, name, city }) => {
+        const invite = data.invites.find((i) => i.token === token);
+        if (!invite || invite.usedAt || invite.expiresAt <= Date.now()) {
+          return { error: "Esta invitación no es válida o ya venció." };
+        }
+        if (password.trim().length < 6) {
+          return { error: "La clave debe tener al menos 6 caracteres." };
+        }
+        if (data.accounts.some((a) => a.email === invite.email)) {
+          return { error: "Ese correo ya tiene cuenta." };
+        }
+        const passwordHash = await hashPassword(password);
+        const displayName = (name || invite.name).trim();
+        const accountId = uid("u");
+        bump((d) => {
+          let technicians = d.technicians;
+          let technicianId: string | undefined;
+          if (invite.role === "tecnico") {
+            technicianId = nextTechnicianCode(d);
+            technicians = [
+              ...d.technicians,
+              { id: technicianId, name: displayName, active: true },
+            ];
+          }
+          const account: Account = {
+            id: accountId,
+            email: invite.email,
+            passwordHash,
+            role: invite.role,
+            name: displayName,
+            phone: phone.trim(),
+            title: invite.role === "tecnico" ? "Técnico de terreno" : "Jefatura",
+            city: (city || "Santiago").trim(),
+            photo: photo || avatarDataUrl(displayName),
+            technicianId,
+            createdAt: Date.now(),
+          };
+          writeSessionId(account.id);
+          setSessionId(account.id);
+          return {
+            ...d,
+            technicians,
+            accounts: [...d.accounts, account],
+            invites: d.invites.map((i) =>
+              i.token === token ? { ...i, usedAt: Date.now() } : i,
+            ),
+          };
+        });
+        return { account: { id: accountId } as Account };
+      },
+      updateProfile: async (input) => {
+        if (!account) return "Debes iniciar sesión.";
+        let passwordHash = account.passwordHash;
+        if (input.password) {
+          if (input.password.trim().length < 6) {
+            return "La clave debe tener al menos 6 caracteres.";
+          }
+          passwordHash = await hashPassword(input.password);
+        }
+        bump((d) => ({
+          ...d,
+          accounts: d.accounts.map((a) =>
+            a.id === account.id
+              ? {
+                  ...a,
+                  name: input.name?.trim() || a.name,
+                  phone: input.phone?.trim() || a.phone,
+                  title: input.title?.trim() || a.title,
+                  city: input.city?.trim() || a.city,
+                  photo: input.photo || a.photo,
+                  passwordHash,
+                }
+              : a,
+          ),
+          technicians:
+            account.technicianId && input.name?.trim()
+              ? d.technicians.map((t) =>
+                  t.id === account.technicianId
+                    ? { ...t, name: input.name!.trim() }
+                    : t,
+                )
+              : d.technicians,
+        }));
+        return null;
       },
       addTechnician: (name) => {
         const trimmed = name.trim();
@@ -1637,7 +1833,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
       },
     }),
-    [data, ready],
+    [data, ready, account, sessionId],
   );
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;

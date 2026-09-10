@@ -14,7 +14,11 @@ import { GhostButton } from "./ui";
 
 const WEEK = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
-export function CalendarBoard() {
+export function CalendarBoard({
+  technicianId,
+}: {
+  technicianId?: string;
+}) {
   const { data } = useStore();
   const now = new Date();
   const [cursor, setCursor] = useState({
@@ -25,7 +29,10 @@ export function CalendarBoard() {
   const today = isoDate();
 
   const cells = useMemo(() => monthCells(cursor.y, cursor.m), [cursor]);
-  const byDate = useMemo(() => routesByActivityDate(data), [data]);
+  const byDate = useMemo(
+    () => routesByActivityDate(data, technicianId),
+    [data, technicianId],
+  );
 
   const selected = data.routes.find((r) => r.id === picked);
 
@@ -40,7 +47,9 @@ export function CalendarBoard() {
     <section className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-navy">Calendario de rutas</h2>
+          <h2 className="text-lg font-bold text-navy">
+            {technicianId ? "Mi calendario" : "Calendario de rutas"}
+          </h2>
         </div>
         <div className="flex items-center gap-2">
           <GhostButton type="button" onClick={() => shift(-1)}>

@@ -23,6 +23,33 @@ export type Technician = {
   active: boolean;
 };
 
+export type AccountRole = "admin" | "jefatura" | "tecnico";
+
+export type Account = {
+  id: string;
+  email: string;
+  passwordHash: string;
+  role: AccountRole;
+  name: string;
+  phone: string;
+  title: string;
+  city: string;
+  photo: string;
+  technicianId?: string;
+  createdAt: number;
+};
+
+export type Invite = {
+  id: string;
+  token: string;
+  email: string;
+  role: Exclude<AccountRole, "admin">;
+  name: string;
+  createdAt: number;
+  expiresAt: number;
+  usedAt?: number;
+};
+
 export type Location = {
   id: string;
   name: string;
@@ -197,6 +224,8 @@ export type AppData = {
   progress: StopProgress[];
   events: LogEvent[];
   workOrders: WorkOrder[];
+  accounts: Account[];
+  invites: Invite[];
   updatedAt?: number;
 };
 
