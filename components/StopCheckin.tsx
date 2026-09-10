@@ -21,6 +21,7 @@ import {
   isReturnToBase,
 } from "@/lib/install";
 import { lodgingPlace, lodgingStatusOf, LODGING_LABEL, needsLodging } from "@/lib/lodging";
+import { kitComplete, kitStats, leadKitOf } from "@/lib/kit";
 import { formatDayPretty } from "@/lib/calendar";
 import { BASE_ADDRESS, BASE_COORDS, coordsOf, formatGps, requestFix } from "@/lib/geo";
 import { stopClockHint } from "@/lib/eta";
@@ -28,11 +29,12 @@ import { compressPhoto } from "@/lib/evidence";
 import { useStore } from "@/lib/store";
 import { stopLocality } from "@/lib/regions";
 import type { Stop } from "@/lib/types";
+import { WORK_SKIP_REASONS } from "@/lib/types";
 import type { PlaceHit } from "@/lib/places";
 import { AddressField } from "./AddressField";
 import { AddressWithMaps } from "./MapsLink";
 import { CloseEvidence } from "./CloseEvidence";
-import { Field, GhostButton, PrimaryButton, Textarea } from "./ui";
+import { Field, GhostButton, PrimaryButton, Select, Textarea } from "./ui";
 
 function useLiveClock() {
   const [now, setNow] = useState(() => clockNow());
@@ -60,6 +62,7 @@ export function StopCheckin({
     markDeparture,
     toggleTask,
     openChecklist,
+    toggleKit,
     confirmLodging,
     changeLodging,
     confirmInstall,
@@ -71,6 +74,8 @@ export function StopCheckin({
   const [installHit, setInstallHit] = useState<PlaceHit | null>(null);
   const [closeNote, setCloseNote] = useState("");
   const [closePhoto, setClosePhoto] = useState("");
+  const [skipped, setSkipped] = useState(false);
+  const [skipReason, setSkipReason] = useState("");
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoErr, setPhotoErr] = useState("");
   const [locating, setLocating] = useState<"arrive" | "leave" | null>(null);
@@ -101,6 +106,9 @@ export function StopCheckin({
   const p = progressOf(data.progress, stop.id, technicianId);
   const mins = stayMinutes(p);
   const tasks = p?.tasks ?? [];
+  const kit = isLead ? (p?.kit ?? leadKitOf(data, stop)) : leadKitOf(data, stop);
+  const kitOk = kitComplete(kit);
+  const kitCount = kitStats(kit);
   const previous = priorStop(data.stops, stop, technicianId);
   const prevProgress = previous
     ? progressOf(data.progress, previous.id, technicianId)
@@ -113,8 +121,12 @@ export function StopCheckin({
       p?.arrivedAt &&
       !p.leftAt &&
       locating !== "arrive" &&
-      closeNote.trim() &&
-      !photoBusy,
+      !photoBusy &&
+      (skipped
+        ? isLead &&
+          skipReason &&
+          (skipReason !== "Otro" || closeNote.trim())
+        : closeNote.trim() && (!isLead || kitOk)),
   );
   const clockHint = stopClockHint(stop);
 
@@ -133,6 +145,8 @@ export function StopCheckin({
     markDeparture(stop.id, technicianId, fix, {
       note: closeNote.trim(),
       photo: closePhoto || undefined,
+      outcome: skipped ? "no_realizado" : "realizado",
+      failReason: skipped ? skipReason : undefined,
     });
     setLocating(null);
   }
@@ -156,7 +170,9 @@ export function StopCheckin({
         : "Llegó bien"
       : "Pendiente"
     : p?.leftAt
-      ? "Cerrada"
+      ? p.outcome === "no_realizado"
+        ? "No se realizó"
+        : "Cerrada"
       : p?.arrivedAt
         ? "Trabajando"
         : "Pendiente";
@@ -166,7 +182,9 @@ export function StopCheckin({
       ? "bg-sky-50 text-sky-900"
       : "bg-stone-100 text-stone-600"
     : p?.leftAt
-      ? "bg-emerald-50 text-emerald-800"
+      ? p.outcome === "no_realizado"
+        ? "bg-red-50 text-red-800"
+        : "bg-emerald-50 text-emerald-800"
       : p?.arrivedAt
         ? "bg-amber-50 text-amber-900"
         : "bg-stone-100 text-stone-600";
@@ -396,6 +414,44 @@ export function StopCheckin({
                 : "pendiente"}
           </p>
           <fieldset className="mt-4 space-y-2" disabled={closed}>
+            <legend className="text-sm font-semibold text-navy">
+              Implementos a llevar
+              {kitCount.total > 0
+                ? ` · ${kitCount.done}/${kitCount.total}`
+                : ""}
+            </legend>
+            {kitCount.total === 0 ? (
+              <p className="text-sm text-stone-500">
+                Esta OT no tiene materiales cargados.
+              </p>
+            ) : (
+              kit.map((item) => (
+                <label
+                  key={item.id}
+                  className={`flex items-center gap-3 rounded-xl bg-amber-50 px-3 py-2 ${
+                    isLead && !closed ? "cursor-pointer" : ""
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={item.done}
+                    disabled={!isLead || closed || !assigned}
+                    onChange={() => toggleKit(stop.id, technicianId, item.id)}
+                    className="h-5 w-5 accent-navy"
+                  />
+                  <span className={item.done ? "text-stone-500 line-through" : ""}>
+                    {item.label}
+                  </span>
+                </label>
+              ))
+            )}
+            {!isLead && kitCount.total > 0 ? (
+              <p className="text-xs text-stone-500">
+                Solo el encargado verifica este checklist.
+              </p>
+            ) : null}
+          </fieldset>
+          <fieldset className="mt-4 space-y-2" disabled={closed}>
             <legend className="text-sm font-semibold text-navy">Tareas</legend>
             {tasks.length === 0 ? (
               <p className="text-sm text-stone-500">Cargando checklist…</p>
@@ -419,15 +475,56 @@ export function StopCheckin({
             )}
           </fieldset>
           {p?.leftAt ? (
-            <CloseEvidence note={p.closeNote} photo={p.closePhoto} />
+            <CloseEvidence
+              note={p.closeNote}
+              photo={p.closePhoto}
+              outcome={p.outcome}
+              failReason={p.failReason}
+            />
           ) : p?.arrivedAt && !closed ? (
             <div className="mt-4 space-y-3 rounded-2xl border border-stone-200 p-3">
               <p className="text-sm font-semibold text-navy">Cierre del trabajo</p>
-              <Field label="Nota de cierre">
+              {isLead ? (
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-red-50 px-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={skipped}
+                    onChange={(e) => setSkipped(e.target.checked)}
+                    className="mt-0.5 h-5 w-5 accent-navy"
+                  />
+                  <span>
+                    El trabajo no se realizó
+                    <span className="mt-0.5 block text-xs text-stone-600">
+                      Márcalo si el cliente no estaba, no hubo acceso u otro
+                      motivo.
+                    </span>
+                  </span>
+                </label>
+              ) : null}
+              {skipped ? (
+                <Field label="Motivo">
+                  <Select
+                    value={skipReason}
+                    onChange={(e) => setSkipReason(e.target.value)}
+                  >
+                    <option value="">Elige un motivo</option>
+                    {WORK_SKIP_REASONS.map((reason) => (
+                      <option key={reason} value={reason}>
+                        {reason}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              ) : null}
+              <Field label={skipped ? "Detalle (si hace falta)" : "Nota de cierre"}>
                 <Textarea
                   rows={3}
                   value={closeNote}
-                  placeholder="Qué se hizo, si quedó algo pendiente, si el cliente estaba…"
+                  placeholder={
+                    skipped
+                      ? "Qué pasó en el lugar, si el cliente avisó, si hay que volver…"
+                      : "Qué se hizo, si quedó algo pendiente, si el cliente estaba…"
+                  }
                   onChange={(e) => setCloseNote(e.target.value)}
                 />
               </Field>
@@ -485,9 +582,19 @@ export function StopCheckin({
                   </GhostButton>
                 }
                 hint={
-                  !closeNote.trim()
+                  skipped
+                    ? !skipReason
+                      ? "Elige el motivo por el que no se hizo"
+                      : skipReason === "Otro" && !closeNote.trim()
+                        ? "Describe el motivo"
+                        : locating === "leave"
+                          ? "El teléfono pedirá permiso de ubicación"
+                          : undefined
+                    : !closeNote.trim()
                     ? "Escribe la nota de cierre"
-                    : locating === "leave"
+                    : isLead && !kitOk
+                      ? "El encargado debe verificar todos los implementos"
+                      : locating === "leave"
                       ? "El teléfono pedirá permiso de ubicación"
                       : undefined
                 }

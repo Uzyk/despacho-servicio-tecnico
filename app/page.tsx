@@ -26,6 +26,12 @@ export default function Home() {
           <h2 className="mt-1 text-2xl font-bold">Técnico</h2>
         </Link>
       </div>
+      <Link
+        href="/presentacion.html"
+        className="mt-8 text-sm font-medium text-navy underline"
+      >
+        Presentación
+      </Link>
     </main>
   );
 }

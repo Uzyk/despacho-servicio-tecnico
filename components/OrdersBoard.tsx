@@ -11,16 +11,24 @@ import {
 import { useStore } from "@/lib/store";
 import {
   JOB_TYPES,
+  type KitItem,
   type WorkOrder,
   type WorkOrderStatus,
   type WorkType,
 } from "@/lib/types";
 import { hasSiteAddress, isDispatchWork } from "@/lib/install";
+import { kitLine } from "@/lib/kit";
 import type { PlaceHit } from "@/lib/places";
 import { AddressField } from "./AddressField";
+import { MaterialsField } from "./MaterialsField";
 import { Card, Field, GhostButton, Input, PrimaryButton, Select } from "./ui";
 
-const STATUS_ORDER: WorkOrderStatus[] = ["pendiente", "en_ruta", "cerrada"];
+const STATUS_ORDER: WorkOrderStatus[] = [
+  "pendiente",
+  "en_ruta",
+  "no_realizada",
+  "cerrada",
+];
 
 export function OrdersBoard() {
   const { data, addWorkOrder, removeWorkOrder } = useStore();
@@ -32,6 +40,7 @@ export function OrdersBoard() {
   );
   const [address, setAddress] = useState("");
   const [installKind, setInstallKind] = useState("");
+  const [materials, setMaterials] = useState<KitItem[]>([]);
   const [picked, setPicked] = useState<PlaceHit | null>(null);
 
   const regionId = regions.some((r) => r.id === locationId)
@@ -46,6 +55,7 @@ export function OrdersBoard() {
     locationId: regionId,
     address,
     installKind,
+    materials,
   };
   const canSave = workOrderReady(draft);
   const grouped = STATUS_ORDER.map((status) => ({
@@ -69,12 +79,14 @@ export function OrdersBoard() {
       city: picked ? localityOfPlace(picked) : undefined,
       address,
       installKind,
+      materials,
       destLat: picked?.lat,
       destLng: picked?.lng,
     });
     setCompanyName("");
     setAddress("");
     setInstallKind("");
+    setMaterials([]);
     setPicked(null);
   }
 
@@ -150,6 +162,7 @@ export function OrdersBoard() {
               />
             </Field>
           ) : null}
+          <MaterialsField items={materials} onChange={setMaterials} />
         </div>
         <PrimaryButton
           className="mt-4 w-full"
@@ -211,6 +224,7 @@ function OrderRow({
             {order.city || regionName}
             {order.address ? ` · ${order.address}` : ""}
             {order.installKind ? ` · ${order.installKind}` : ""}
+            {kitLine(order) ? ` · ${kitLine(order)}` : ""}
             {order.routeId ? ` · ${order.routeId}` : ""}
           </p>
         </div>

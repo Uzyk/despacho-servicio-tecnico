@@ -2,6 +2,7 @@ import { formatDayPretty } from "@/lib/calendar";
 import { stopClockHint } from "@/lib/eta";
 import { formatHours, isLocationPing, stayMinutes, stopAssignees } from "@/lib/hours";
 import { companyNameOf, installDetail } from "@/lib/install";
+import { kitLine } from "@/lib/kit";
 import { lodgingPlace, needsLodging } from "@/lib/lodging";
 import { money } from "@/lib/ids";
 import { routePayout, routeVehicleId } from "@/lib/record";
@@ -95,6 +96,9 @@ export function RouteTimeline({
           const s = line.stop;
           const loc = stopLocality(data, s);
           const clockHint = stopClockHint(s);
+          const kit = kitLine(
+            data.workOrders?.find((order) => order.id === s.workOrderId),
+          );
           return (
             <li key={s.id} className="flex gap-3">
               <div className="flex w-8 flex-col items-center">
@@ -119,6 +123,7 @@ export function RouteTimeline({
                     ? ` · ${lodgingPlace(s)}`
                     : ""}
                   {installDetail(s) ? ` · ${installDetail(s)}` : ""}
+                  {kit ? ` · kit: ${kit}` : ""}
                   {isLocationPing(s.workType)
                     ? " · todos"
                     : stopAssignees(s).length

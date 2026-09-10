@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import { Providers } from "@/components/Providers";
 import "./globals.css";
@@ -12,6 +12,19 @@ export const metadata: Metadata = {
   title: "Despacho servicio técnico",
   description:
     "Gestión tecnológica de rutas, locaciones y viáticos para el estudio de caso INACAP.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Despacho técnico",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: "/icon.svg",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0f3a5f",
 };
 
 export default function RootLayout({

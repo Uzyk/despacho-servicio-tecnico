@@ -72,6 +72,8 @@ export function HistoryBoard() {
                             who={nameOf(data.technicians, p.technicianId)}
                             note={p.closeNote}
                             photo={p.closePhoto}
+                            outcome={p.outcome}
+                            failReason={p.failReason}
                           />
                         ))}
                       </li>

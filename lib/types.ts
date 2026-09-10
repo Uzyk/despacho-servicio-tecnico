@@ -37,6 +37,8 @@ export type VehicleKind = "Camioneta" | "Furgón" | "Auto" | "Otro";
 
 export type VehicleStatus = "operativo" | "fuera_de_servicio";
 
+export type VehicleDuty = "operativo" | "en_terreno" | "fuera_de_servicio";
+
 export type Vehicle = {
   id: string;
   name: string;
@@ -48,6 +50,15 @@ export type Vehicle = {
 
 export type RouteStatus = "abierta" | "finalizada";
 
+export type RouteAllowances = {
+  breakfast: number;
+  lunch: number;
+  dinner: number;
+  tolls: number;
+  fuel: number;
+  hotel: number;
+};
+
 export type Route = {
   id: string;
   day: Day;
@@ -57,11 +68,19 @@ export type Route = {
   status?: RouteStatus;
   closedAt?: number;
   restDates?: string[];
+  allowances?: RouteAllowances;
 };
 
 export type LodgingStatus = "pendiente" | "confirmado" | "cambiado";
 
-export type WorkOrderStatus = "pendiente" | "en_ruta" | "cerrada";
+export type WorkOrderStatus = "pendiente" | "en_ruta" | "cerrada" | "no_realizada";
+
+export type StopOutcome = "realizado" | "no_realizado";
+
+export type KitItem = {
+  id: string;
+  label: string;
+};
 
 export type WorkOrder = {
   id: string;
@@ -71,6 +90,7 @@ export type WorkOrder = {
   city?: string;
   address: string;
   installKind: string;
+  materials: KitItem[];
   destLat?: number;
   destLng?: number;
   status: WorkOrderStatus;
@@ -141,7 +161,10 @@ export type StopProgress = {
   leftAccuracyM?: number;
   closeNote?: string;
   closePhoto?: string;
+  outcome?: StopOutcome;
+  failReason?: string;
   tasks: TaskItem[];
+  kit?: TaskItem[];
 };
 
 export type LogKind =
@@ -182,6 +205,15 @@ export const FAIL_REASONS = [
   "Enfermedad",
   "Problema personal",
   "Problema de vehículo",
+  "Otro",
+] as const;
+
+export const WORK_SKIP_REASONS = [
+  "El cliente no se encontraba en el lugar",
+  "El cliente rechazó el servicio",
+  "Sin acceso al recinto",
+  "Faltaron materiales o implementos",
+  "Condiciones inseguras o clima",
   "Otro",
 ] as const;
 

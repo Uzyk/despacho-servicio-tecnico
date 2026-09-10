@@ -1,12 +1,14 @@
 import { hasSiteAddress, needsCompany } from "./install";
+import { cleanMaterials } from "./kit";
 import { isRouteOpen } from "./record";
-import type { AppData, WorkOrder, WorkOrderStatus, WorkType } from "./types";
+import type { AppData, KitItem, WorkOrder, WorkOrderStatus, WorkType } from "./types";
 import { JOB_TYPES } from "./types";
 
 export const WORK_ORDER_STATUS_LABEL: Record<WorkOrderStatus, string> = {
   pendiente: "Pendiente",
   en_ruta: "En ruta",
   cerrada: "Cerrada",
+  no_realizada: "No realizada",
 };
 
 export function nextWorkOrderId(data: AppData) {
@@ -41,6 +43,7 @@ export function workOrderReady(order: {
   locationId: string;
   address: string;
   installKind: string;
+  materials?: KitItem[];
 }) {
   if (!isJobType(order.workType) || !order.locationId) return false;
   if (needsCompany(order.workType) && !order.companyName.trim()) return false;
@@ -50,6 +53,7 @@ export function workOrderReady(order: {
   ) {
     return false;
   }
+  if (cleanMaterials(order.materials).length === 0) return false;
   return true;
 }
 
@@ -65,11 +69,19 @@ export function syncWorkOrders(data: AppData): WorkOrder[] {
         routeId: undefined,
       };
     }
+    const missed = (data.progress ?? []).some(
+      (p) => p.stopId === stop.id && p.outcome === "no_realizado",
+    );
     const route = data.routes.find((r) => r.id === stop.routeId);
     const closed = route ? !isRouteOpen(route) : false;
+    const status: WorkOrderStatus = missed
+      ? "no_realizada"
+      : closed
+        ? "cerrada"
+        : "en_ruta";
     return {
       ...order,
-      status: closed ? ("cerrada" as const) : ("en_ruta" as const),
+      status,
       stopId: stop.id,
       routeId: stop.routeId,
     };

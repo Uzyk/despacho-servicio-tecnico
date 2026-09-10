@@ -23,19 +23,21 @@ import { withLocationCoords, type GeoFix } from "./geo";
 import { hasSiteAddress, needsCompany } from "./install";
 import { needsLodging } from "./lodging";
 import { findOrCreateRouteId, nextTechnicianCode, uid } from "./ids";
+import { cleanMaterials, kitComplete, materialsForStop, mergeLeadKit } from "./kit";
 import { nextWorkOrderId, syncWorkOrders } from "./orders";
 import { applyPlaceToStop, migrateLocations } from "./regions";
 import type { PlaceHit } from "./places";
-import { isFreeForRoute } from "./availability";
+import { isFreeForRoute, isVehicleFreeForRoute, pickFreeVehicleId } from "./availability";
 import { hasAckedRoute, isRouteOpen } from "./record";
 import { canRestOn, stopDate } from "./routeDays";
-import { SEED } from "./seed";
+import { SEED, SEED_TECHNICIANS } from "./seed";
 import type {
   AppData,
   Assignment,
   Day,
   Location,
   LogEvent,
+  RouteAllowances,
   Stop,
   StopProgress,
   Technician,
@@ -43,8 +45,13 @@ import type {
   VehicleStatus,
   WorkOrder,
   WorkType,
+  KitItem,
 } from "./types";
-import { pickOperativeVehicleId } from "./vehicles";
+import {
+  cleanAllowances,
+  DEFAULT_LUNCH,
+  withOvernightDefaults,
+} from "./allowances";
 
 const KEY = "despacho-inacap-v1";
 const CHANNEL = "despacho-inacap-v1";
@@ -65,7 +72,7 @@ function withLeadOnRoute(
       events: data.events ?? [],
     };
   }
-  const van = pickOperativeVehicleId(data, vehicleId);
+  const van = pickFreeVehicleId(data, routeId, vehicleId);
   if (!isFreeForRoute(data, leadId, routeId)) {
     return {
       assignments: data.assignments,
@@ -95,7 +102,7 @@ function withLeadOnRoute(
         mode: "Individual" as const,
         peopleInVan: 1,
         peopleOnRoute: 1,
-        perDiem: 10000,
+        perDiem: DEFAULT_LUNCH,
       },
     ],
     events: logEvent(data.events ?? [], {
@@ -107,25 +114,41 @@ function withLeadOnRoute(
   };
 }
 
-function dropVehicleFromOpenRoutes(data: AppData, vehicleId: string): AppData {
-  const next = pickOperativeVehicleId(
-    { ...data, vehicles: data.vehicles.filter((v) => v.id !== vehicleId) },
-  );
+function withFreeRouteVehicle(data: AppData, routeId: string): AppData {
+  const preferred = data.routes.find((r) => r.id === routeId)?.vehicleId;
+  const van = pickFreeVehicleId(data, routeId, preferred);
+  if ((preferred || "") === van) return data;
   return {
     ...data,
     routes: data.routes.map((r) =>
-      isRouteOpen(r) && r.vehicleId === vehicleId
-        ? { ...r, vehicleId: next || undefined }
-        : r,
+      r.id === routeId ? { ...r, vehicleId: van || undefined } : r,
     ),
-    assignments: data.assignments.map((a) => {
-      const route = data.routes.find((r) => r.id === a.routeId);
-      if (route && isRouteOpen(route) && a.vehicleId === vehicleId) {
-        return { ...a, vehicleId: next };
-      }
-      return a;
-    }),
+    assignments: data.assignments.map((a) =>
+      a.routeId === routeId ? { ...a, vehicleId: van } : a,
+    ),
   };
+}
+
+function dropVehicleFromOpenRoutes(data: AppData, vehicleId: string): AppData {
+  let next = data;
+  const hit = next.routes.filter(
+    (r) => isRouteOpen(r) && r.vehicleId === vehicleId,
+  );
+  for (const route of hit) {
+    const van = pickFreeVehicleId(next, route.id);
+    next = {
+      ...next,
+      routes: next.routes.map((r) =>
+        r.id === route.id ? { ...r, vehicleId: van || undefined } : r,
+      ),
+      assignments: next.assignments.map((a) =>
+        a.routeId === route.id && a.vehicleId === vehicleId
+          ? { ...a, vehicleId: van }
+          : a,
+      ),
+    };
+  }
+  return next;
 }
 
 function logEvent(
@@ -143,6 +166,17 @@ function normalize(data: AppData): AppData {
   if (!data.progress) data.progress = [];
   if (!data.events) data.events = [];
   if (!data.workOrders) data.workOrders = [];
+  data.technicians = data.technicians.map((t) => {
+    const match = t.id.match(/^T(\d+)$/);
+    const seedName = match
+      ? SEED_TECHNICIANS[Number(match[1]) - 1]
+      : undefined;
+    if (!seedName) return t;
+    if (!t.name || /^Técnico\s+\d+$/i.test(t.name)) {
+      return { ...t, name: seedName };
+    }
+    return t;
+  });
   data.locations = data.locations.map(withLocationCoords);
   data.vehicles = data.vehicles.map((v) => {
     const model = v.model || v.name;
@@ -173,6 +207,14 @@ function normalize(data: AppData): AppData {
         r.vehicleId ||
         data.assignments.find((a) => a.routeId === r.id)?.vehicleId ||
         undefined,
+      allowances: cleanAllowances(
+        r.allowances ?? {
+          lunch:
+            data.assignments.find(
+              (a) => a.routeId === r.id && a.technicianId === r.leadId,
+            )?.perDiem ?? DEFAULT_LUNCH,
+        },
+      ),
     };
   });
   data.stops = data.stops.map((s) => {
@@ -198,6 +240,18 @@ function normalize(data: AppData): AppData {
       note: "Asignación inicial",
     }));
   }
+  data.workOrders = (data.workOrders ?? []).map((order) => ({
+    ...order,
+    materials: cleanMaterials(order.materials),
+  }));
+  data.assignments = data.assignments.map((a) => {
+    const van = data.routes.find((r) => r.id === a.routeId)?.vehicleId;
+    return van && a.vehicleId !== van ? { ...a, vehicleId: van } : a;
+  });
+  data.progress = (data.progress ?? []).map((p) => ({
+    ...p,
+    kit: Array.isArray(p.kit) ? p.kit : undefined,
+  }));
   data.workOrders = syncWorkOrders(data);
   return data;
 }
@@ -255,6 +309,7 @@ type Store = {
     city?: string;
     address: string;
     installKind: string;
+    materials: KitItem[];
     destLat?: number;
     destLng?: number;
   }) => string;
@@ -310,6 +365,7 @@ type Store = {
   moveStop: (stopId: string, direction: -1 | 1) => void;
   setRouteLead: (routeId: string, leadId: string) => void;
   setRouteVehicle: (routeId: string, vehicleId: string) => void;
+  setRouteAllowances: (routeId: string, allowances: RouteAllowances) => void;
   removeStop: (stopId: string) => void;
   assign: (input: Omit<Assignment, "id">) => void;
   removeAssignment: (id: string) => void;
@@ -323,9 +379,15 @@ type Store = {
     stopId: string,
     technicianId: string,
     fix?: GeoFix | null,
-    evidence?: { note: string; photo?: string },
+    evidence?: {
+      note: string;
+      photo?: string;
+      outcome?: "realizado" | "no_realizado";
+      failReason?: string;
+    },
   ) => void;
   toggleTask: (stopId: string, technicianId: string, taskId: string) => void;
+  toggleKit: (stopId: string, technicianId: string, itemId: string) => void;
   openChecklist: (stopId: string, technicianId: string) => void;
   replaceTechnician: (input: {
     routeId: string;
@@ -363,6 +425,26 @@ function ensureProgress(
   return [...data.progress, created];
 }
 
+function withLeadKit(
+  data: AppData,
+  stopId: string,
+  technicianId: string,
+): StopProgress[] {
+  const list = ensureProgress(data, stopId, technicianId);
+  const opened = openStopRoute(data, stopId);
+  if (!opened || opened.route.leadId !== technicianId) return list;
+  const materials = materialsForStop(data, opened.stop);
+  if (!materials.length) return list;
+  let changed = false;
+  const next = list.map((p) => {
+    if (p.stopId !== stopId || p.technicianId !== technicianId) return p;
+    const merged = mergeLeadKit(p, materials);
+    if (merged !== p) changed = true;
+    return merged;
+  });
+  return changed || list !== data.progress ? next : data.progress;
+}
+
 function openStopRoute(data: AppData, stopId: string) {
   const stop = data.stops.find((s) => s.id === stopId);
   const route = data.routes.find((r) => r.id === stop?.routeId);
@@ -389,6 +471,8 @@ function upsertProgress(
       | "leftAccuracyM"
       | "closeNote"
       | "closePhoto"
+      | "outcome"
+      | "failReason"
     >
   >,
 ): StopProgress[] {
@@ -404,7 +488,9 @@ function load(): AppData {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return structuredClone(SEED);
-    return normalize(JSON.parse(raw) as AppData);
+    const parsed = normalize(JSON.parse(raw) as AppData);
+    writeStorage(parsed);
+    return parsed;
   } catch {
     return structuredClone(SEED);
   }
@@ -466,8 +552,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         /* ignore */
       }
     }, 1000);
+    function flushWhenOnline() {
+      if (!navigator.onLine) return;
+      setData((current) => {
+        try {
+          const raw = localStorage.getItem(KEY);
+          if (raw) {
+            const stored = normalize(JSON.parse(raw) as AppData);
+            if ((stored.updatedAt ?? 0) > (current.updatedAt ?? 0)) {
+              return stored;
+            }
+          }
+        } catch {
+          /* ignore broken storage */
+        }
+        const rev = withRev(current);
+        writeStorage(rev);
+        channelRef.current?.postMessage(rev);
+        return rev;
+      });
+    }
+    window.addEventListener("online", flushWhenOnline);
     return () => {
       window.removeEventListener("storage", onStorage);
+      window.removeEventListener("online", flushWhenOnline);
       window.clearInterval(id);
       channel.close();
       channelRef.current = null;
@@ -635,6 +743,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const companyName = input.companyName.trim();
         const address = input.address.trim();
         const installKind = input.installKind.trim();
+        const materials = cleanMaterials(input.materials);
         let created = "";
         bump((d) => {
           const id = nextWorkOrderId(d);
@@ -647,6 +756,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             city: input.city?.trim() || undefined,
             address,
             installKind,
+            materials,
             destLat: input.destLat,
             destLng: input.destLng,
             status: "pendiente",
@@ -770,22 +880,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 : {}),
           };
           if (place) stop = applyPlaceToStop(d, stop, place);
+          const overnight = needsLodging(workType);
+          const staged = withFreeRouteVehicle(
+            {
+              ...d,
+              routes,
+              stops: [...d.stops, stop],
+              workOrders: wo
+                ? (d.workOrders ?? []).map((o) =>
+                    o.id === wo.id
+                      ? {
+                          ...o,
+                          status: "en_ruta" as const,
+                          stopId,
+                          routeId: found.routeId,
+                        }
+                      : o,
+                  )
+                : d.workOrders,
+            },
+            found.routeId,
+          );
           return {
-            ...d,
-            routes,
-            stops: [...d.stops, stop],
-            workOrders: wo
-              ? (d.workOrders ?? []).map((o) =>
-                  o.id === wo.id
-                    ? {
-                        ...o,
-                        status: "en_ruta" as const,
-                        stopId,
-                        routeId: found.routeId,
-                      }
-                    : o,
-                )
-              : d.workOrders,
+            ...staged,
+            routes: staged.routes.map((r) => {
+              if (r.id !== found.routeId) return r;
+              return {
+                ...r,
+                allowances: overnight
+                  ? withOvernightDefaults(r.allowances)
+                  : cleanAllowances(r.allowances),
+              };
+            }),
           };
         });
         return routeId || "R-???";
@@ -795,17 +921,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const route = d.routes.find((r) => r.id === routeId);
           if (!route || !canRestOn(d, route, date)) return d;
           if ((route.restDates ?? []).includes(date)) return d;
-          return {
-            ...d,
-            routes: d.routes.map((r) =>
-              r.id === routeId
-                ? {
-                    ...r,
-                    restDates: [...(r.restDates ?? []), date].sort(),
-                  }
-                : r,
-            ),
-          };
+          return withFreeRouteVehicle(
+            {
+              ...d,
+              routes: d.routes.map((r) =>
+                r.id === routeId
+                  ? {
+                      ...r,
+                      restDates: [...(r.restDates ?? []), date].sort(),
+                    }
+                  : r,
+              ),
+            },
+            routeId,
+          );
         });
       },
       removeRestDay: (routeId, date) => {
@@ -1000,7 +1129,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           );
           if (!leadId) return { ...d, routes };
           const withRoute = { ...d, routes };
-          const van = pickOperativeVehicleId(withRoute, route.vehicleId);
+          const van = pickFreeVehicleId(withRoute, routeId, route.vehicleId);
           const crew = withLeadOnRoute(withRoute, routeId, leadId, van);
           return {
             ...d,
@@ -1033,8 +1162,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       setRouteVehicle: (routeId, vehicleId) => {
         bump((d) => {
-          const van = pickOperativeVehicleId(d, vehicleId);
-          if (!van) return d;
+          if (!vehicleId || !isVehicleFreeForRoute(d, vehicleId, routeId)) {
+            return d;
+          }
+          const van = vehicleId;
           return {
             ...d,
             routes: d.routes.map((r) =>
@@ -1042,6 +1173,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ),
             assignments: d.assignments.map((a) =>
               a.routeId === routeId ? { ...a, vehicleId: van } : a,
+            ),
+          };
+        });
+      },
+      setRouteAllowances: (routeId, allowances) => {
+        bump((d) => {
+          const route = d.routes.find((r) => r.id === routeId);
+          if (!route || !isRouteOpen(route)) return d;
+          const next = cleanAllowances(allowances);
+          return {
+            ...d,
+            routes: d.routes.map((r) =>
+              r.id === routeId ? { ...r, allowances: next } : r,
+            ),
+            assignments: d.assignments.map((a) =>
+              a.routeId === routeId ? { ...a, perDiem: next.lunch } : a,
             ),
           };
         });
@@ -1134,8 +1281,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
           if (!isFreeForRoute(d, input.technicianId, input.routeId)) return d;
           const route = d.routes.find((r) => r.id === input.routeId);
-          const van = pickOperativeVehicleId(
+          const van = pickFreeVehicleId(
             d,
+            input.routeId,
             route?.vehicleId ||
               d.assignments.find((a) => a.routeId === input.routeId)?.vehicleId,
           );
@@ -1277,17 +1425,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const current = progressOf(d.progress, stopId, technicianId);
           if (!current?.arrivedAt || current.leftAt) return d;
           if (current.arrivedAtMs && Date.now() < current.arrivedAtMs) return d;
+          const missed = evidence?.outcome === "no_realizado";
+          const reason = evidence?.failReason?.trim() ?? "";
           const note = evidence?.note.trim() ?? "";
-          if (!note) return d;
+          if (missed) {
+            if (!reason) return d;
+            if (reason === "Otro" && !note) return d;
+            if (opened.route.leadId !== technicianId) return d;
+          } else if (!note) {
+            return d;
+          }
+          if (
+            !missed &&
+            opened.route.leadId === technicianId &&
+            materialsForStop(d, stop).length > 0 &&
+            (!current.kit?.length || !kitComplete(current.kit))
+          ) {
+            return d;
+          }
           const stamp = stampNow();
           const gps = formatFixNote(fix);
           const photo = evidence?.photo?.trim();
+          const closeNote = missed
+            ? note
+              ? `No se realizó · ${reason}. ${note}`
+              : `No se realizó · ${reason}`
+            : note;
           return {
             ...d,
             progress: upsertProgress(d, stopId, technicianId, {
               leftAt: stamp.time,
               leftAtMs: stamp.ms,
-              closeNote: note,
+              closeNote,
+              outcome: missed ? "no_realizado" : "realizado",
+              failReason: missed ? reason : undefined,
               ...(photo ? { closePhoto: photo } : {}),
               ...(fix
                 ? {
@@ -1297,12 +1468,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                   }
                 : {}),
             }),
+            workOrders: stop.workOrderId
+              ? (d.workOrders ?? []).map((o) =>
+                  o.id === stop.workOrderId
+                    ? {
+                        ...o,
+                        status: missed
+                          ? ("no_realizada" as const)
+                          : o.status,
+                      }
+                    : o,
+                )
+              : d.workOrders,
             events: logEvent(d.events ?? [], {
               technicianId,
               routeId: stop.routeId,
               stopId,
               kind: "salida",
-              note: `Cerró trabajo ${stamp.time}${gps} · ${note.slice(0, 180)}`,
+              note: missed
+                ? `No se realizó ${stamp.time}${gps} · ${reason}`
+                : `Cerró trabajo ${stamp.time}${gps} · ${note.slice(0, 180)}`,
             }),
           };
         });
@@ -1326,10 +1511,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           };
         });
       },
+      toggleKit: (stopId, technicianId, itemId) => {
+        bump((d) => {
+          const opened = openStopRoute(d, stopId);
+          if (!opened || opened.route.leadId !== technicianId) return d;
+          const list = withLeadKit(d, stopId, technicianId);
+          return {
+            ...d,
+            progress: list.map((p) =>
+              p.stopId === stopId && p.technicianId === technicianId
+                ? {
+                    ...p,
+                    kit: (p.kit ?? []).map((item) =>
+                      item.id === itemId ? { ...item, done: !item.done } : item,
+                    ),
+                  }
+                : p,
+            ),
+          };
+        });
+      },
       openChecklist: (stopId, technicianId) => {
         bump((d) => {
           if (!openStopRoute(d, stopId)) return d;
-          const next = ensureProgress(d, stopId, technicianId);
+          const next = withLeadKit(d, stopId, technicianId);
           if (next === d.progress) return d;
           return { ...d, progress: next };
         });
@@ -1420,7 +1625,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ),
             workOrders: (d.workOrders ?? []).map((o) =>
               o.routeId === routeId
-                ? { ...o, status: "cerrada" as const }
+                ? o.status === "no_realizada"
+                  ? o
+                  : { ...o, status: "cerrada" as const }
                 : o,
             ),
             events,
@@ -1446,5 +1653,5 @@ export function nameOf(list: { id: string; name: string }[], id: string) {
 
 export function payout(a: Assignment, leadId: string, crewSize = 1): number {
   if (a.technicianId !== leadId) return 0;
-  return crewSize * a.perDiem;
+  return crewSize * (a.perDiem || DEFAULT_LUNCH);
 }

@@ -1,3 +1,8 @@
+import {
+  allowancesOf,
+  routeHasOvernight,
+  totalAllowances,
+} from "./allowances";
 import { hoursForStops } from "./hours";
 import type { AppData, LogEvent, LogKind } from "./types";
 
@@ -84,11 +89,13 @@ export function routeVehicleId(data: AppData, routeId: string) {
 
 export function routePayout(data: AppData, routeId: string) {
   const route = data.routes.find((r) => r.id === routeId);
-  const leadPay = data.assignments.find(
-    (a) => a.routeId === routeId && a.technicianId === route?.leadId,
+  if (!route) return 0;
+  const crew = Math.max(crewIds(data, routeId).length, 1);
+  return totalAllowances(
+    allowancesOf(data, route),
+    crew,
+    routeHasOvernight(data, routeId),
   );
-  const per = leadPay?.perDiem ?? 10000;
-  return crewIds(data, routeId).length * per;
 }
 
 export function openRoutes(data: AppData) {

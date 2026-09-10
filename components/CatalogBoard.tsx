@@ -5,11 +5,14 @@ import { useStore } from "@/lib/store";
 import { catalogBase, catalogRegions } from "@/lib/regions";
 import { VEHICLE_KINDS, type Vehicle, type VehicleKind, type VehicleStatus } from "@/lib/types";
 import {
+  VEHICLE_DUTY_LABEL,
+  vehicleDutyClass,
   vehicleKindOf,
   vehicleLabel,
   vehicleModel,
   vehicleStatusOf,
 } from "@/lib/vehicles";
+import { vehicleDutyOf } from "@/lib/availability";
 import { Card, Field, Input, PrimaryButton, Select } from "./ui";
 
 type CatalogEdit = "tech" | "loc" | "van" | null;
@@ -72,6 +75,8 @@ function VehicleEditRow({
   const [kind, setKind] = useState<VehicleKind>(vehicleKindOf(vehicle));
   const [plate, setPlate] = useState(vehicle.plate);
   const status = vehicleStatusOf(vehicle);
+  const { data } = useStore();
+  const duty = vehicleDutyOf(data, vehicle.id);
 
   function commit(nextModel = model, nextKind = kind, nextPlate = plate) {
     onSave({ model: nextModel, kind: nextKind, plate: nextPlate });
@@ -117,6 +122,9 @@ function VehicleEditRow({
             <option value="fuera_de_servicio">Fuera de servicio</option>
           </Select>
         </div>
+        {duty === "en_terreno" ? (
+          <p className="text-xs font-semibold text-amber-800">En terreno</p>
+        ) : null}
         <button
           type="button"
           className="text-xs text-red-700 underline"
@@ -368,7 +376,7 @@ export function CatalogBoard() {
                     />
                   ))
                 : data.vehicles.map((v) => {
-                    const status = vehicleStatusOf(v);
+                    const duty = vehicleDutyOf(data, v.id);
                     return (
                       <li
                         key={v.id}
@@ -377,16 +385,8 @@ export function CatalogBoard() {
                         <p className="font-semibold text-navy">
                           {vehicleLabel(v)}
                         </p>
-                        <p
-                          className={`text-xs font-semibold ${
-                            status === "operativo"
-                              ? "text-emerald-700"
-                              : "text-red-700"
-                          }`}
-                        >
-                          {status === "operativo"
-                            ? "Operativo"
-                            : "Fuera de servicio"}
+                        <p className={`text-xs font-semibold ${vehicleDutyClass(duty)}`}>
+                          {VEHICLE_DUTY_LABEL[duty]}
                         </p>
                       </li>
                     );

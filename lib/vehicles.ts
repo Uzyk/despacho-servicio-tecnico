@@ -1,4 +1,16 @@
-import type { AppData, Vehicle, VehicleKind, VehicleStatus } from "./types";
+import type {
+  AppData,
+  Vehicle,
+  VehicleDuty,
+  VehicleKind,
+  VehicleStatus,
+} from "./types";
+
+export const VEHICLE_DUTY_LABEL: Record<VehicleDuty, string> = {
+  operativo: "Operativo",
+  en_terreno: "En terreno",
+  fuera_de_servicio: "Fuera de servicio",
+};
 
 export function isVehicleOperative(vehicle: Vehicle) {
   return (vehicle.status ?? "operativo") === "operativo";
@@ -36,6 +48,12 @@ export function vehicleKindOf(vehicle: Vehicle): VehicleKind {
 
 export function vehicleStatusOf(vehicle: Vehicle): VehicleStatus {
   return vehicle.status ?? "operativo";
+}
+
+export function vehicleDutyClass(duty: VehicleDuty) {
+  if (duty === "en_terreno") return "text-amber-800";
+  if (duty === "fuera_de_servicio") return "text-red-700";
+  return "text-emerald-700";
 }
 
 export function vehicleLabel(vehicle: Vehicle) {

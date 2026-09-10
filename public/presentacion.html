@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gestión de OT · INACAP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Source+Sans+3:wght@600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --red: #e30513;
+      --red-dark: #b3040f;
+      --gray: #5a5b5e;
+      --gray-soft: #ececed;
+      --white: #ffffff;
+      --black: #000000;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--black);
+      color: var(--black);
+      font-family: Roboto, "Segoe UI", Arial, sans-serif;
+      overflow: hidden;
+    }
+    .deck { height: 100%; background: var(--white); position: relative; }
+    .slide {
+      display: none;
+      position: absolute;
+      inset: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    .slide.active { display: flex; flex-direction: column; }
+    .bar {
+      flex: 0 0 auto;
+      background: var(--red);
+      color: var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 56px;
+      min-height: 56px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; font-family: "Source Sans 3", Arial, sans-serif; font-weight: 800; letter-spacing: .08em; }
+    .iso {
+      width: 28px; height: 28px;
+      border: 2px solid var(--white);
+      display: grid; place-items: center;
+      font-size: 16px; font-weight: 800;
+    }
+    .bar span { font-size: 13px; letter-spacing: .04em; opacity: .92; }
+    .body { flex: 1; padding: 48px 56px 72px; }
+    .eyebrow {
+      color: var(--red);
+      font-family: "Source Sans 3", Arial, sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      margin: 0 0 14px;
+    }
+    h1, h2, h3 { font-family: "Source Sans 3", Arial, sans-serif; margin: 0; }
+    h1 { font-size: clamp(40px, 5.4vw, 72px); line-height: .95; letter-spacing: -.03em; max-width: 16ch; }
+    h2 { font-size: clamp(28px, 3.2vw, 46px); line-height: 1.08; letter-spacing: -.02em; max-width: 22ch; margin-bottom: 18px; }
+    h3 { font-size: 22px; margin-bottom: 8px; }
+    p { margin: 0; font-size: clamp(16px, 1.35vw, 20px); line-height: 1.45; color: var(--gray); }
+    .footer {
+      position: absolute; left: 56px; right: 120px; bottom: 22px;
+      display: flex; justify-content: space-between;
+      font-size: 13px; color: var(--gray);
+    }
+    .progress { position: absolute; left: 0; bottom: 0; height: 6px; background: var(--red); }
+    .nav { position: absolute; z-index: 4; right: 28px; bottom: 16px; display: flex; gap: 8px; }
+    .nav button {
+      width: 42px; height: 42px; border: 0; border-radius: 0;
+      background: var(--red); color: var(--white); font-size: 24px; cursor: pointer;
+    }
+    .nav button:hover { background: var(--red-dark); }
+    .grid-2 { display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; height: 100%; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 36px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 36px; }
+    .names { list-style: none; padding: 0; margin: 28px 0 0; }
+    .names li {
+      font-size: 18px; font-weight: 500; padding: 10px 0;
+      border-top: 1px solid #d9d9da;
+    }
+    .names li:last-child { border-bottom: 1px solid #d9d9da; }
+    .kicker { margin-top: 22px; color: var(--black); font-weight: 500; max-width: 42ch; }
+    .pair { display: grid; grid-template-columns: 1fr 1fr; margin-top: 28px; }
+    .pair article { padding: 24px 22px; min-height: 160px; }
+    .pair article:first-child { background: var(--gray-soft); }
+    .pair article:last-child { background: var(--red); color: var(--white); }
+    .pair article:last-child p { color: #ffe8ea; }
+    .pair h3 { color: inherit; }
+    .list { list-style: none; padding: 0; margin: 8px 0 0; }
+    .list li {
+      position: relative;
+      padding: 14px 0 14px 28px;
+      border-bottom: 1px solid #d9d9da;
+      font-size: 18px;
+      color: var(--gray);
+    }
+    .list li:before {
+      content: "";
+      position: absolute; left: 0; top: 22px;
+      width: 12px; height: 2px; background: var(--red);
+    }
+    .note {
+      margin-top: 28px; padding: 22px;
+      background: var(--black); color: var(--white);
+    }
+    .note h3 { color: var(--white); }
+    .note p { color: #d0d0d2; font-size: 17px; }
+    .call { border-left: 4px solid var(--red); padding: 4px 0 8px 16px; margin: 16px 0; }
+    .call p { font-size: 18px; }
+    .step { padding: 8px 20px 8px 0; border-top: 3px solid var(--red); min-height: 210px; }
+    .step + .step { padding-left: 20px; }
+    .step b { display: block; color: var(--red); font-size: 13px; letter-spacing: .12em; margin: 16px 0 28px; }
+    .step p { font-size: 16px; }
+    .field-card { border-top: 3px solid var(--red); padding: 18px 4px 0; }
+    .status { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid #d9d9da; font-size: 18px; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--red); flex: 0 0 auto; }
+    .dot.g { background: var(--gray); }
+    .dot.b { background: var(--black); }
+    .metric { border-top: 1px solid var(--red); padding: 18px 6px 8px; }
+    .metric strong { display: block; font-family: "Source Sans 3", Arial, sans-serif; font-size: 26px; margin-bottom: 6px; }
+    .metric span { font-size: 16px; color: var(--gray); }
+    .link {
+      display: inline-block; margin-top: 28px; padding: 14px 18px;
+      background: var(--red); color: var(--white); text-decoration: none;
+      font-weight: 700; font-size: 17px;
+    }
+    .link:hover { background: var(--red-dark); }
+    .hint { margin-top: 22px; max-width: 54ch; font-size: 16px; }
+    .screen {
+      width: 100%;
+      max-width: 520px;
+      aspect-ratio: 16 / 10;
+      border: 10px solid var(--black);
+      background: var(--white);
+      overflow: hidden;
+      justify-self: end;
+    }
+    .screen.phone {
+      max-width: 280px;
+      aspect-ratio: 9 / 16;
+      border-radius: 18px;
+    }
+    .screen iframe {
+      width: 200%;
+      height: 100%;
+      border: 0;
+      transform: scale(.5);
+      transform-origin: top left;
+      pointer-events: none;
+    }
+    .dark { background: var(--black); color: var(--white); }
+    .dark .body { color: var(--white); }
+    .dark h2, .dark h3 { color: var(--white); }
+    .dark p, .dark .footer, .dark .metric span { color: #c8c8ca; }
+    .dark .eyebrow { color: var(--red); }
+    .dark .bar { background: var(--black); border-bottom: 3px solid var(--red); }
+    .dark .field-card, .dark .metric { border-top-color: var(--red); }
+    @media (max-width: 860px) {
+      .bar, .body { padding-left: 24px; padding-right: 24px; }
+      .footer { left: 24px; right: 90px; }
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; gap: 20px; }
+      .screen, .screen.phone { max-width: 100%; height: 220px; aspect-ratio: auto; }
+      .step { min-height: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck" id="deck">
+    <section class="slide active">
+      <div class="bar"><div class="brand"><span class="iso">I</span> INACAP</div><span>Tecnologías aplicadas a los sistemas inteligentes</span></div>
+      <div class="body">
+        <div class="grid-2">
+          <div>
+            <p class="eyebrow">Estudio de caso</p>
+            <h1>Gestión de órdenes de trabajo</h1>
+            <p class="kicker">Despacho de servicio técnico: de la solicitud al cierre en terreno.</p>
+            <ul class="names">
+              <li>Victor Godoy</li>
+              <li>Francisca Lagos</li>
+              <li>Pablo Leiva</li>
+            </ul>
+          </div>
+          <div class="screen" aria-hidden="true">
+            <iframe title="Aplicación en vivo" data-src="/jefatura?tab=ot"></iframe>
+          </div>
+        </div>
+      </div>
+      <div class="footer"><span>Despacho de servicio técnico</span><span>01 / 09</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="bar"><div class="brand"><span class="iso">I</span> INACAP</div><span>02 · Contexto</span></div>
+      <div class="body">
+        <p class="eyebrow">El problema</p>
+        <h2>Coordinar una OT pide la misma información, al mismo tiempo</h2>
+        <p>Solicitud, ruta, responsables, lugar y cierre. Si eso vive en planillas y chats distintos, el equipo pierde de vista el trabajo.</p>
+        <div class="pair">
+          <article>
+            <h3>Planilla aislada</h3>
+            <p>Versiones, edición a mano y coordinación por otro canal.</p>
+          </article>
+          <article>
+            <h3>Flujo conectado</h3>
+            <p>La OT acompaña al equipo desde que se crea hasta que se registra la ejecución.</p>
+          </article>
+        </div>
+      </div>
+      <div class="footer"><span>Gestión de OT</span><span>02 / 09</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="bar"><div class="brand"><span class="iso">I</span> INACAP</div><span>03 · Decisión</span></div>
+      <div class="body">
+        <p class="eyebrow">Por qué una plataforma propia</p>
+        <h2>El despacho diario no cabe en una hoja</h2>
+        <div class="grid-2">
+          <ul class="list">
+            <li>Jefatura y técnico ven lo que corresponde a su rol.</li>
+            <li>La ruta, los estados y las tareas quedan atados a una misma OT.</li>
+            <li>Se pueden incorporar reglas del equipo sin forzar el Excel.</li>
+            <li>El recorrido se muestra, se acusa y se cierra en el mismo sistema.</li>
+          </ul>
+          <aside class="note">
+            <h3>Excel sigue sirviendo</h3>
+            <p>Para análisis y cargas puntuales. Para el día a día de terreno el grupo necesitaba un flujo único, trazable y usable en el celular.</p>
+          </aside>
+        </div>
+      </div>
+      <div class="footer"><span>Plataforma propia</span><span>03 / 09</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="bar"><div class="brand"><span class="iso">I</span> INACAP</div><span>04 · Crear la OT</span></div>
+      <div class="body">
+        <div class="grid-2">
+          <div class="screen" aria-hidden="true">
+            <iframe title="Pestaña OT" data-src="/jefatura?tab=ot"></iframe>
+          </div>
+          <div>
+            <p class="eyebrow">Punto de partida</p>
+            <h2>La OT concentra el contexto del servicio</h2>
+            <div class="call"><h3>Datos de la solicitud</h3><p>Tipo, empresa, región, dirección y detalle de instalación o despacho.</p></div>
+            <div class="call"><h3>Lista para planificar</h3><p>Queda pendiente hasta que Armar la elige en el desplegable.</p></div>
+            <div class="call"><h3>Una sola fuente</h3><p>No se vuelve a tipear el trabajo entre planilla, chat y ficha.</p></div>
+          </div>
+        </div>
+      </div>
+      <div class="footer"><span>Jefatura</span><span>04 / 09</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="bar"><div class="brand"><span class="iso">I</span> INACAP</div><span>05 · Flujo</span></div>
+      <div class="body">
+        <p class="eyebrow">De la solicitud al cierre</p>
+        <h2>Una secuencia simple para controlar el servicio</h2>
+        <div class="grid-4">
+          <article class="step"><b>01</b><h3>Crear OT</h3><p>Registrar el requerimiento y el lugar.</p></article>
+          <article class="step"><b>02</b><h3>Planificar</h3><p>Elegir la OT, fecha, ruta, cuadrilla y hora.</p></article>
+          <article class="step"><b>03</b><h3>Ejecutar</h3><p>El técnico ve el itinerario, acusa, llega y cierra el trabajo.</p></article>
+          <article class="step"><b>04</b><h3>Cerrar</h3><p>La ruta pasa a historial y la OT queda cerrada.</p></article>
+        </div>
+      </div>
+      <div class="footer"><span>Flujo OT</span><span>05 / 09</span></div>
+    </section>
+
+    <section class="slide dark">
+      <div class="bar"><div class="brand"><span class="iso">I</span> INACAP</div><span>06 · Terreno</span></div>
+      <div class="body">
+        <p class="eyebrow">Vista del técnico</p>
+        <h2>El trabajo en terreno usa un itinerario claro</h2>
+        <div class="grid-2">
+          <div class="grid-3" style="grid-template-columns:1fr; margin-top:8px; gap:22px;">
+            <article class="field-card"><h3>Ruta asignada</h3><p>Jornada, encargado, vehículo y viáticos.</p></article>
+            <article class="field-card"><h3>Paradas ordenadas</h3><p>Traslado, trabajo, hospedaje y regreso a base.</p></article>
+            <article class="field-card"><h3>Registro</h3><p>Llegué con GPS, tareas y Me fui con nota y foto.</p></article>
+          </div>
+          <div class="screen phone" aria-hidden="true">
+            <iframe title="Vista del técnico" data-src="/tecnico"></iframe>
+          </div>
+        </div>
+      </div>
+      <div class="footer"><span>Técnico</span><span>06 / 09</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="bar"><div class="brand"><span class="iso">I</span> INACAP</div><span>07 · Seguimiento</span></div>
+      <div class="body">
+        <div class="grid-2">
+          <div>
+            <p class="eyebrow">Jefatura</p>
+            <h2>Visibilidad de la operación en el día</h2>
+            <p>El panel En vivo reúne mapa, rutas abiertas, responsables y el estado de cada equipo.</p>
+            <div style="margin-top:28px">
+              <div class="status"><i class="dot g"></i>Base INACAP</div>
+              <div class="status"><i class="dot"></i>En tránsito</div>
+              <div class="status"><i class="dot b"></i>Llegó</div>
+              <div class="status"><i class="dot"></i>Pernocta</div>
+            </div>
+          </div>
+          <div class="screen" aria-hidden="true">
+            <iframe title="En vivo" data-src="/jefatura?tab=vivo"></iframe>
+          </div>
+        </div>
+      </div>
+      <div class="footer"><span>Estados de ruta</span><span>07 / 09</span></div>
+    </section>
+
+    <section class="slide dark">
+      <div class="bar"><div class="brand"><span class="iso">I</span> INACAP</div><span>08 · Revisión</span></div>
+      <div class="body">
+        <p class="eyebrow">Desempeño e historial</p>
+        <h2>Lo ejecutado queda para revisar</h2>
+        <div class="grid-3">
+          <article class="metric"><strong>Rutas</strong><span>Asignadas y finalizadas por técnico.</span></article>
+          <article class="metric"><strong>Llegadas</strong><span>Hitos de ejecución en el itinerario.</span></article>
+          <article class="metric"><strong>Horas</strong><span>Permanencia reportada en el trabajo.</span></article>
+          <article class="metric"><strong>Informe</strong><span>Descarga mensual por trabajador.</span></article>
+          <article class="metric"><strong>Cubrió</strong><span>Reemplazos y coberturas.</span></article>
+          <article class="metric"><strong>Historial</strong><span>Rutas cerradas para consulta.</span></article>
+        </div>
+      </div>
+      <div class="footer"><span>Desempeño</span><span>08 / 09</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="bar"><div class="brand"><span class="iso">I</span> INACAP</div><span>09 · Cierre</span></div>
+      <div class="body">
+        <p class="eyebrow">Próximo paso</p>
+        <h2>El ciclo de la OT queda en un solo lugar</h2>
+        <p>Jefatura coordina. El técnico ejecuta. El registro queda para la revisión.</p>
+        <p class="kicker">Victor Godoy · Francisca Lagos · Pablo Leiva</p>
+        <a class="link" id="appLink" href="https://despacho-servicio-tecnico.vercel.app/" target="_blank" rel="noreferrer">Abrir la aplicación</a>
+        <p class="hint">En la demo: crear una OT, armarla en la ruta y mostrar la ficha del técnico.</p>
+      </div>
+      <div class="footer"><span>Estudio de caso INACAP</span><span>09 / 09</span></div>
+    </section>
+
+    <div class="nav">
+      <button type="button" id="prev" aria-label="Anterior">‹</button>
+      <button type="button" id="next" aria-label="Siguiente">›</button>
+    </div>
+    <div class="progress" id="progress"></div>
+  </main>
+  <script>
+    const slides = [...document.querySelectorAll(".slide")];
+    let index = 0;
+    const progress = document.querySelector("#progress");
+    const origin = location.protocol === "file:"
+      ? "https://despacho-servicio-tecnico.vercel.app"
+      : "";
+    document.querySelectorAll("iframe[data-src]").forEach((frame) => {
+      frame.src = origin + frame.getAttribute("data-src");
+    });
+    const appLink = document.querySelector("#appLink");
+    if (origin === "") appLink.href = "/";
+    function show(next) {
+      index = (next + slides.length) % slides.length;
+      slides.forEach((slide, i) => slide.classList.toggle("active", i === index));
+      progress.style.width = ((index + 1) / slides.length) * 100 + "%";
+    }
+    document.querySelector("#next").onclick = () => show(index + 1);
+    document.querySelector("#prev").onclick = () => show(index - 1);
+    addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.key === " ") {
+        e.preventDefault();
+        show(index + 1);
+      }
+      if (e.key === "ArrowLeft") show(index - 1);
+    });
+    show(0);
+  </script>
+</body>
+</html>

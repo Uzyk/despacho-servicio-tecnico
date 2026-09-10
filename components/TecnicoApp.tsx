@@ -22,6 +22,11 @@ import {
   stayMinutes,
 } from "@/lib/hours";
 import { money } from "@/lib/ids";
+import {
+  allowanceBreakdown,
+  allowancesOf,
+  routeHasOvernight,
+} from "@/lib/allowances";
 import { routeLive } from "@/lib/live";
 import {
   formatWhen,
@@ -35,9 +40,11 @@ import { nameOf, useStore } from "@/lib/store";
 import { stopLocality } from "@/lib/regions";
 import { vehicleNameOf } from "@/lib/vehicles";
 import { Card, Field, GhostButton, PrimaryButton, Select } from "./ui";
+import { OfflineBanner } from "./OfflineBanner";
 import { StopCheckin } from "./StopCheckin";
 
 const WEEK = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+const TECH_KEY = "despacho-inacap-tech";
 
 function routesByDate(data: AppData, routes: Route[]) {
   const map = new Map<string, Route[]>();
@@ -72,6 +79,15 @@ function TechRouteDay({
   const acked = hasAckedRoute(data, route.id, techId);
   const cash =
     myAssign && techId === route.leadId ? routePayout(data, route.id) : 0;
+  const overnight = routeHasOvernight(data, route.id);
+  const allowanceLines =
+    cash > 0
+      ? allowanceBreakdown(
+          allowancesOf(data, route),
+          data.assignments.filter((a) => a.routeId === route.id).length || 1,
+          overnight,
+        )
+      : [];
   const van = routeVehicleId(data, route.id);
   const dayStops = data.stops
     .filter((s) => s.routeId === route.id && stopDate(s, route) === date)
@@ -106,6 +122,13 @@ function TechRouteDay({
               : ""}
             {cash > 0 ? ` · viáticos ${money(cash)}` : ""}
             {routeMins > 0 ? ` · ${formatHours(routeMins)} este día` : ""}
+          </p>
+        ) : null}
+        {allowanceLines.length > 0 ? (
+          <p className="mt-1 text-xs text-stone-500">
+            {allowanceLines
+              .map((line) => `${line.label} ${money(line.amount)}`)
+              .join(" · ")}
           </p>
         ) : null}
       </div>
@@ -265,6 +288,7 @@ function TechCalendar({
 export function TecnicoApp() {
   const { data, ready } = useStore();
   const [techId, setTechId] = useState(data.technicians[0]?.id ?? "T01");
+  const [techReady, setTechReady] = useState(false);
   const [pickedDate, setPickedDate] = useState<string | null>(null);
 
   const actives = data.technicians.filter((t) => t.active);
@@ -293,8 +317,27 @@ export function TecnicoApp() {
   const showCalendar = allDates.length > 1;
 
   useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(TECH_KEY);
+      if (saved) setTechId(saved);
+    } catch {
+      /* ignore */
+    }
+    setTechReady(true);
+  }, []);
+
+  useEffect(() => {
     setPickedDate(null);
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!techReady || !selectedId) return;
+    try {
+      window.localStorage.setItem(TECH_KEY, selectedId);
+    } catch {
+      /* ignore */
+    }
+  }, [selectedId, techReady]);
 
   const detail = useMemo(() => {
     if (!selectedId) return [];
@@ -329,6 +372,8 @@ export function TecnicoApp() {
           Cambiar rol
         </Link>
       </header>
+
+      <OfflineBanner />
 
       <Card>
         <Field label="Soy">

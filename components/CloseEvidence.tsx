@@ -3,14 +3,19 @@ export function CloseEvidence({
   photo,
   who,
   compact,
+  outcome,
+  failReason,
 }: {
   note?: string;
   photo?: string;
   who?: string;
   compact?: boolean;
+  outcome?: "realizado" | "no_realizado";
+  failReason?: string;
 }) {
   const text = note?.trim() ?? "";
-  if (!text && !photo) return null;
+  const missed = outcome === "no_realizado";
+  if (!text && !photo && !missed) return null;
   return (
     <div
       className={
@@ -22,6 +27,11 @@ export function CloseEvidence({
       {who ? (
         <p className={compact ? "font-semibold text-navy" : "text-sm font-semibold text-navy"}>
           {who}
+        </p>
+      ) : null}
+      {missed ? (
+        <p className={compact ? "font-semibold text-red-800" : "text-sm font-semibold text-red-800"}>
+          No se realizó{failReason ? ` · ${failReason}` : ""}
         </p>
       ) : null}
       {text ? (

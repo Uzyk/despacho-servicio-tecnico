@@ -16,7 +16,9 @@ import {
   sameDayOpenRoutes,
   selectableOpenRoute,
 } from "@/lib/routeDays";
-import { money } from "@/lib/ids";
+import {
+  allowancesOf,
+} from "@/lib/allowances";
 import {
   installAddressOf,
   installKindOf,
@@ -33,7 +35,9 @@ import { lodgingPlace, lodgingStatusOf, LODGING_LABEL, needsLodging } from "@/li
 import { isLocationPing } from "@/lib/hours";
 import {
   freeTechniciansForRoute,
+  freeVehiclesForRoute,
   leadCandidatesForRoute,
+  vehicleDutyOf,
 } from "@/lib/availability";
 import {
   crewIds,
@@ -43,8 +47,14 @@ import {
   routePayout,
 } from "@/lib/record";
 import { pendingWorkOrders, workOrderLabel, workOrderOf } from "@/lib/orders";
+import { money } from "@/lib/ids";
 import { nameOf, useStore } from "@/lib/store";
-import { operativeVehicles, vehicleLabel } from "@/lib/vehicles";
+import {
+  VEHICLE_DUTY_LABEL,
+  operativeVehicles,
+  vehicleLabel,
+} from "@/lib/vehicles";
+import { AllowancesFields } from "./AllowancesFields";
 import {
   TRAVEL_TYPES,
   type Day,
@@ -90,7 +100,23 @@ type Tab =
   | "ot"
   | "catalogos";
 
-export function JefaturaApp() {
+const TABS: Tab[] = [
+  "vivo",
+  "ot",
+  "rutas",
+  "asignar",
+  "armadas",
+  "calendario",
+  "desempeno",
+  "historial",
+  "catalogos",
+];
+
+function asTab(value?: string): Tab {
+  return TABS.includes(value as Tab) ? (value as Tab) : "vivo";
+}
+
+export function JefaturaApp({ initialTab }: { initialTab?: string }) {
   const {
     data,
     ready,
@@ -110,7 +136,7 @@ export function JefaturaApp() {
     setRouteVehicle,
     reset,
   } = useStore();
-  const [tab, setTab] = useState<Tab>("vivo");
+  const [tab, setTab] = useState<Tab>(() => asTab(initialTab));
 
   const [date, setDate] = useState(() => nearestWorkday(isoDate()));
   const [day, setDay] = useState<Day>(
@@ -153,10 +179,19 @@ export function JefaturaApp() {
   const returnOrigin = lastWorkOrigin(data, preview);
   const resting = preview ? isRestDay(preview, date) : false;
   const canMarkRest = preview ? canRestOn(data, preview, date) : false;
-  const vans = operativeVehicles(data);
 
   const selectedRoute =
     openRoutes(data).find((r) => r.id === routeId) ?? openRoutes(data)[0];
+  const vans = selectedRoute
+    ? freeVehiclesForRoute(data, selectedRoute.id)
+    : operativeVehicles(data);
+  const busyVans = selectedRoute
+    ? data.vehicles.filter(
+        (v) =>
+          v.status !== "fuera_de_servicio" &&
+          !vans.some((free) => free.id === v.id),
+      )
+    : [];
   const extras = selectedRoute
     ? freeTechniciansForRoute(data, selectedRoute.id)
     : [];
@@ -420,6 +455,9 @@ export function JefaturaApp() {
                   · {selectedOrder.address || selectedOrder.companyName}
                   {selectedOrder.installKind
                     ? ` · ${selectedOrder.installKind}`
+                    : ""}
+                  {selectedOrder.materials?.length
+                    ? ` · kit: ${selectedOrder.materials.map((item) => item.label).join(", ")}`
                     : ""}
                 </p>
               ) : null}
@@ -786,7 +824,8 @@ export function JefaturaApp() {
                   <p className="text-sm text-stone-500">Elige una ruta.</p>
                 ) : vans.length === 0 ? (
                   <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                    No hay vehículos operativos. Márcalos en Catálogos.
+                    No hay vehículos libres cerca. Los demás están en terreno o
+                    fuera de servicio.
                   </p>
                 ) : (
                   <Select
@@ -806,12 +845,26 @@ export function JefaturaApp() {
                     {vans.map((v) => (
                       <option key={v.id} value={v.id}>
                         {vehicleLabel(v)}
+                        {vehicleDutyOf(data, v.id) === "en_terreno"
+                          ? ` · ${VEHICLE_DUTY_LABEL.en_terreno}`
+                          : ""}
                       </option>
                     ))}
                   </Select>
                 )}
+                {busyVans.length > 0 ? (
+                  <p className="mt-2 text-xs text-stone-500">
+                    En terreno y no disponibles:{" "}
+                    {busyVans.map((v) => vehicleLabel(v)).join(" · ")}
+                  </p>
+                ) : null}
               </Field>
             </div>
+            {selectedRoute ? (
+              <div className="mt-4 border-t border-stone-100 pt-4">
+                <AllowancesFields route={selectedRoute} />
+              </div>
+            ) : null}
           </Card>
           <Card title="Técnico extra">
             <Field label="Técnico">
@@ -847,7 +900,9 @@ export function JefaturaApp() {
                   mode: "Grupal",
                   peopleInVan: 0,
                   peopleOnRoute: 0,
-                  perDiem: 10000,
+                  perDiem: selectedRoute
+                    ? allowancesOf(data, selectedRoute).lunch
+                    : 10000,
                 });
                 const next = extras.find((t) => t.id !== extraId);
                 setTechId(next?.id ?? "");
