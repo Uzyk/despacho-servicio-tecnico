@@ -30,6 +30,7 @@ import type { PlaceHit } from "./places";
 import { isFreeForRoute, isVehicleFreeForRoute, pickFreeVehicleId } from "./availability";
 import { hasAckedRoute, isRouteOpen } from "./record";
 import { canRestOn, stopDate } from "./routeDays";
+import { pullRemote, pushRemote } from "./remote";
 import { SEED, SEED_TECHNICIANS } from "./seed";
 import { hashPassword, normalizeEmail, SESSION_KEY, avatarDataUrl } from "./auth";
 import type {
@@ -572,26 +573,51 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   function persist(next: AppData) {
     writeStorage(next);
     channelRef.current?.postMessage(next);
+    pushRemote(next);
   }
 
   function applyIncoming(incoming: AppData) {
     const parsed = normalize(incoming);
     setData((prev) => {
       if ((parsed.updatedAt ?? 0) <= (prev.updatedAt ?? 0)) return prev;
+      writeStorage(parsed);
       return parsed;
     });
   }
 
-  useEffect(() => {
-    const next = load();
-    setData(next);
+  function adoptSession(next: AppData) {
     const saved = readSessionId();
     if (saved && next.accounts.some((a) => a.id === saved)) {
       setSessionId(saved);
     } else {
       writeSessionId(null);
+      setSessionId(null);
     }
-    setReady(true);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function boot() {
+      const local = load();
+      if (cancelled) return;
+      setData(local);
+      adoptSession(local);
+      const remote = await pullRemote();
+      if (cancelled) return;
+      if (remote && (remote.updatedAt ?? 0) > (local.updatedAt ?? 0)) {
+        const parsed = normalize(remote);
+        writeStorage(parsed);
+        setData(parsed);
+        adoptSession(parsed);
+      } else {
+        pushRemote(local);
+      }
+      setReady(true);
+    }
+    void boot();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -619,24 +645,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         /* ignore */
       }
     }, 1000);
+    const remoteId = window.setInterval(() => {
+      void pullRemote().then((remote) => {
+        if (remote) applyIncoming(remote);
+      });
+    }, 2000);
     function flushWhenOnline() {
       if (!navigator.onLine) return;
-      setData((current) => {
-        try {
-          const raw = localStorage.getItem(KEY);
-          if (raw) {
-            const stored = normalize(JSON.parse(raw) as AppData);
-            if ((stored.updatedAt ?? 0) > (current.updatedAt ?? 0)) {
-              return stored;
-            }
+      void pullRemote().then((remote) => {
+        setData((current) => {
+          if (remote && (remote.updatedAt ?? 0) > (current.updatedAt ?? 0)) {
+            const parsed = normalize(remote);
+            writeStorage(parsed);
+            return parsed;
           }
-        } catch {
-          /* ignore broken storage */
-        }
-        const rev = withRev(current);
-        writeStorage(rev);
-        channelRef.current?.postMessage(rev);
-        return rev;
+          pushRemote(current);
+          return current;
+        });
       });
     }
     window.addEventListener("online", flushWhenOnline);
@@ -644,6 +669,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("online", flushWhenOnline);
       window.clearInterval(id);
+      window.clearInterval(remoteId);
       channel.close();
       channelRef.current = null;
     };

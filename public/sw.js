@@ -1,4 +1,4 @@
-const CACHE = "despacho-offline-v5";
+const CACHE = "despacho-offline-v6";
 const PRECACHE = ["/", "/tecnico", "/jefatura", "/admin", "/perfil", "/unirse"];
 
 self.addEventListener("install", (event) => {
