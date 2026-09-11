@@ -126,6 +126,24 @@ export function previousWorkday(iso: string) {
   return isoDate(value);
 }
 
+export function nextWorkday(iso: string) {
+  const value = parseIso(iso);
+  do {
+    value.setDate(value.getDate() + 1);
+  } while (value.getDay() === 0 || value.getDay() === 6);
+  return isoDate(value);
+}
+
+export function workdaysAhead(from: string, count: number) {
+  const days: string[] = [];
+  let cursor = from;
+  for (let i = 0; i < count; i += 1) {
+    cursor = nextWorkday(cursor);
+    days.push(cursor);
+  }
+  return days;
+}
+
 export function daysBetween(from: string, to: string) {
   const ms = parseIso(to).getTime() - parseIso(from).getTime();
   return Math.round(ms / 86_400_000);

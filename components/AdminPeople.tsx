@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { inviteLink, inviteOpen, ROLE_LABEL } from "@/lib/auth";
+import { COMPANY } from "@/lib/brand";
 import { useStore } from "@/lib/store";
 import type { AccountRole } from "@/lib/types";
 import { GhostButton, Input, PrimaryButton, Select } from "./ui";
@@ -51,7 +52,7 @@ export function AdminPeople() {
 
   const mailHref = last
     ? `mailto:${encodeURIComponent(last.email)}?subject=${encodeURIComponent(
-        "Invitación a Despacho técnico INACAP",
+        `Invitación a ${COMPANY}`,
       )}&body=${encodeURIComponent(
         `Hola ${last.name},\n\nCrea tu cuenta con este enlace (válido 14 días):\n${last.link}\n`,
       )}`

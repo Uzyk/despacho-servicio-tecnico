@@ -46,7 +46,12 @@ import {
   openRoutes,
   routePayout,
 } from "@/lib/record";
-import { pendingWorkOrders, workOrderLabel, workOrderOf } from "@/lib/orders";
+import {
+  companyContactLabel,
+  pendingWorkOrders,
+  workOrderLabel,
+  workOrderOf,
+} from "@/lib/orders";
 import { money } from "@/lib/ids";
 import { nameOf, useStore } from "@/lib/store";
 import {
@@ -127,7 +132,6 @@ export function JefaturaApp({ initialTab }: { initialTab?: string }) {
     finishRoute,
     setRouteLead,
     setRouteVehicle,
-    reset,
   } = useStore();
   const [tab, setTab] = useState<Tab>(() => asTab(initialTab));
   const [dirQuery, setDirQuery] = useState("");
@@ -288,7 +292,6 @@ export function JefaturaApp({ initialTab }: { initialTab?: string }) {
     <AppShell
       tab={tab}
       onTab={setTab}
-      onReset={reset}
       onSearch={(query) => {
         setDirQuery(query);
         setTab("directorio");
@@ -447,6 +450,9 @@ export function JefaturaApp({ initialTab }: { initialTab?: string }) {
                   · {selectedOrder.address || selectedOrder.companyName}
                   {selectedOrder.installKind
                     ? ` · ${selectedOrder.installKind}`
+                    : ""}
+                  {companyContactLabel(selectedOrder)
+                    ? ` · ${companyContactLabel(selectedOrder)}`
                     : ""}
                   {selectedOrder.materials?.length
                     ? ` · kit: ${selectedOrder.materials.map((item) => item.label).join(", ")}`

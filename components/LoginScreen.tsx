@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ADMIN_EMAIL,
@@ -9,7 +9,9 @@ import {
   ROLE_HOME,
 } from "@/lib/auth";
 import { useStore } from "@/lib/store";
+import { COMPANY, COMPANY_MARK, PRODUCT } from "@/lib/brand";
 import { Input, PrimaryButton } from "./ui";
+import { WelcomeOnboard } from "./WelcomeOnboard";
 
 export function LoginScreen() {
   const { account, ready, login } = useStore();
@@ -18,6 +20,8 @@ export function LoginScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [intro, setIntro] = useState(true);
+  const finishIntro = useCallback(() => setIntro(false), []);
 
   useEffect(() => {
     if (ready && account) router.replace(ROLE_HOME[account.role]);
@@ -39,18 +43,22 @@ export function LoginScreen() {
     return <p className="p-8 text-stone-600">Cargando…</p>;
   }
 
+  if (intro) {
+    return <WelcomeOnboard onDone={finishIntro} />;
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-10">
+    <div className="onboard-login flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-6 flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-navy text-sm font-bold text-gold">
-            DT
+            {COMPANY_MARK}
           </span>
           <div>
             <p className="text-lg font-semibold tracking-tight text-navy">
-              Despacho técnico
+              {COMPANY}
             </p>
-            <p className="text-sm text-stone-500">INACAP · acceso por correo</p>
+            <p className="text-sm text-stone-500">{PRODUCT} · acceso por correo</p>
           </div>
         </div>
 

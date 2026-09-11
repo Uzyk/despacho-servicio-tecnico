@@ -37,9 +37,25 @@ export function workOrderLabel(order: WorkOrder) {
   return `${order.id} · ${order.companyName} · ${order.workType}`;
 }
 
+export function companyContactLabel(order: {
+  contactName?: string;
+  contactPhone?: string;
+}) {
+  return [order.contactName?.trim(), order.contactPhone?.trim()]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+export function telHref(phone: string) {
+  const compact = phone.replace(/\s+/g, "");
+  return compact ? `tel:${compact}` : "";
+}
+
 export function workOrderReady(order: {
   workType: WorkType;
   companyName: string;
+  contactName?: string;
+  contactPhone?: string;
   locationId: string;
   address: string;
   installKind: string;
@@ -47,6 +63,12 @@ export function workOrderReady(order: {
 }) {
   if (!isJobType(order.workType) || !order.locationId) return false;
   if (needsCompany(order.workType) && !order.companyName.trim()) return false;
+  if (
+    needsCompany(order.workType) &&
+    (!order.contactName?.trim() || !order.contactPhone?.trim())
+  ) {
+    return false;
+  }
   if (
     hasSiteAddress(order.workType) &&
     (!order.address.trim() || !order.installKind.trim())

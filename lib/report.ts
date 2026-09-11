@@ -234,7 +234,7 @@ export function downloadTechMonthReport(
   </style>
 </head>
 <body>
-  <p class="gold">INACAP · Tecnologías aplicadas a los sistemas inteligentes</p>
+  <p class="gold">Voltsense · Informe de terreno</p>
   <h1>Informe mensual de desempeño</h1>
   <p class="muted">${esc(report.name)} · ${esc(report.technicianId)} · ${esc(report.period)}</p>
   <p class="muted">Generado ${esc(generated)}</p>

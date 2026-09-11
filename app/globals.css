@@ -53,3 +53,77 @@ textarea {
 .leaflet-container {
   font-family: inherit;
 }
+
+@keyframes onboard-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes onboard-rule {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes onboard-orb {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.32;
+  }
+  50% {
+    transform: translate3d(6%, -5%, 0) scale(1.08);
+    opacity: 0.5;
+  }
+}
+
+.onboard-in {
+  animation: onboard-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.onboard-delay-1 {
+  animation-delay: 0.12s;
+}
+
+.onboard-delay-2 {
+  animation-delay: 0.26s;
+}
+
+.onboard-rule {
+  transform-origin: left;
+  animation: onboard-rule 0.7s 0.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.onboard-orb {
+  animation: onboard-orb 10s ease-in-out infinite;
+}
+
+.onboard-orb-slow {
+  animation: onboard-orb 16s ease-in-out infinite reverse;
+}
+
+.onboard-login {
+  animation: onboard-in 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboard-in,
+  .onboard-rule,
+  .onboard-orb,
+  .onboard-orb-slow,
+  .onboard-login {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+    width: 100%;
+  }
+}

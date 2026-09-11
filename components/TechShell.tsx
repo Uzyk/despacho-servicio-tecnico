@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useStore } from "@/lib/store";
+import { BrandMark } from "./BrandMark";
 import { AccountBadge } from "./UserBar";
 import { PortalTopBar } from "./PortalDash";
 
@@ -47,9 +48,7 @@ export function TechShell({
     <div className="min-h-screen lg:flex">
       <aside className="border-b border-white/10 bg-navy text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-60 lg:shrink-0 lg:flex-col lg:border-b-0 lg:border-r">
         <div className="px-3 py-4 lg:px-4">
-          <p className="mb-3 px-1 text-[11px] font-semibold uppercase tracking-wide text-white/45">
-            Despacho técnico
-          </p>
+          <BrandMark />
           <AccountBadge tone="dark" />
           <div className="mt-3 flex flex-wrap gap-1 lg:hidden">
             <Link

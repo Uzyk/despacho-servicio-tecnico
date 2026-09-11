@@ -5,6 +5,8 @@ import { catalogRegions, localityOfPlace, regionIdOfPlace } from "@/lib/regions"
 import { coordsOf } from "@/lib/geo";
 import {
   WORK_ORDER_STATUS_LABEL,
+  companyContactLabel,
+  telHref,
   workOrderLabel,
   workOrderReady,
 } from "@/lib/orders";
@@ -35,6 +37,8 @@ export function OrdersBoard() {
   const regions = catalogRegions(data.locations);
   const [workType, setWorkType] = useState<WorkType>("Instalación");
   const [companyName, setCompanyName] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [locationId, setLocationId] = useState(
     regions.find((r) => r.id === "loc-metropolitana")?.id ?? regions[0]?.id ?? "",
   );
@@ -52,6 +56,8 @@ export function OrdersBoard() {
   const draft = {
     workType,
     companyName,
+    contactName,
+    contactPhone,
     locationId: regionId,
     address,
     installKind,
@@ -75,6 +81,8 @@ export function OrdersBoard() {
     addWorkOrder({
       workType,
       companyName,
+      contactName,
+      contactPhone,
       locationId: regionId,
       city: picked ? localityOfPlace(picked) : undefined,
       address,
@@ -84,6 +92,8 @@ export function OrdersBoard() {
       destLng: picked?.lng,
     });
     setCompanyName("");
+    setContactName("");
+    setContactPhone("");
     setAddress("");
     setInstallKind("");
     setMaterials([]);
@@ -111,6 +121,25 @@ export function OrdersBoard() {
               placeholder="Nombre de la empresa o recinto…"
             />
           </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Contacto">
+              <Input
+                value={contactName}
+                onChange={(e) => setContactName(e.target.value)}
+                placeholder="Nombre de quien recibe…"
+                autoComplete="name"
+              />
+            </Field>
+            <Field label="Teléfono">
+              <Input
+                type="tel"
+                value={contactPhone}
+                onChange={(e) => setContactPhone(e.target.value)}
+                placeholder="+56 9 1234 5678"
+                autoComplete="tel"
+              />
+            </Field>
+          </div>
           <Field label="Región">
             <Select
               value={regionId}
@@ -227,6 +256,21 @@ function OrderRow({
             {kitLine(order) ? ` · ${kitLine(order)}` : ""}
             {order.routeId ? ` · ${order.routeId}` : ""}
           </p>
+          {companyContactLabel(order) ? (
+            <p className="mt-1 text-stone-600">
+              Contacto:{" "}
+              {order.contactPhone ? (
+                <a
+                  href={telHref(order.contactPhone)}
+                  className="font-medium text-navy hover:underline"
+                >
+                  {companyContactLabel(order)}
+                </a>
+              ) : (
+                companyContactLabel(order)
+              )}
+            </p>
+          ) : null}
         </div>
         {onRemove ? (
           <GhostButton type="button" onClick={onRemove}>

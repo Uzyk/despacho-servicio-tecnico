@@ -9,7 +9,8 @@ import { lodgingPlace, needsLodging } from "@/lib/lodging";
 import { formatHours, isStopAssignedTo, stopAssignees } from "@/lib/hours";
 import { pendingWorkOrders } from "@/lib/orders";
 import { vehicleDutyOf } from "@/lib/availability";
-import { hasAckedRoute, openRoutes, pendingAcks, routeVehicleId } from "@/lib/record";
+import { avatarDataUrl } from "@/lib/auth";
+import { hasAckedRoute, assignmentsOnOpenRoutes, openRoutes, pendingAcks, routeVehicleId } from "@/lib/record";
 import { formatRouteSpan } from "@/lib/routeDays";
 import {
   liveRoutes,
@@ -88,9 +89,14 @@ export function LiveBoard({
     (t) => t.active && assigned.has(t.id),
   ).length;
 
-  const team = (data.accounts ?? [])
-    .filter((person) => person.role === "tecnico")
-    .slice(0, 4);
+  const team = assignmentsOnOpenRoutes(data).map((row) => ({
+    technicianId: row.technicianId,
+    routeId: row.routeId,
+    name: nameOf(data.technicians, row.technicianId),
+    photo:
+      data.accounts.find((a) => a.technicianId === row.technicianId)?.photo ||
+      avatarDataUrl(nameOf(data.technicians, row.technicianId)),
+  }));
   const tasks: { id: string; label: string; tab: JefaturaTab }[] = [];
   if (otOpen > 0) {
     tasks.push({ id: "ot", label: `${otOpen} OT sin asignar`, tab: "ot" });
@@ -176,15 +182,15 @@ export function LiveBoard({
       <div className="grid gap-4 xl:grid-cols-[16rem_minmax(0,1fr)]">
         <PortalCard title="Equipo en terreno">
           {team.length === 0 ? (
-            <p className="text-sm text-stone-500">Sin técnicos.</p>
+            <p className="text-sm text-stone-500">Nadie en ruta.</p>
           ) : (
             <ul>
               {team.map((person) => (
                 <PersonRow
-                  key={person.id}
+                  key={`${person.technicianId}-${person.routeId}`}
                   photo={person.photo}
                   name={person.name}
-                  hint={person.technicianId ?? person.title}
+                  hint={`${person.technicianId} · ${person.routeId}`}
                 />
               ))}
             </ul>

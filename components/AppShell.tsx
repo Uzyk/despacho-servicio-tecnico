@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useStore } from "@/lib/store";
+import { BrandMark } from "./BrandMark";
 import { AccountBadge } from "./UserBar";
 import { PortalTopBar } from "./PortalDash";
 
@@ -35,13 +36,11 @@ const JEFATURA_NAV: { id: JefaturaTab; label: string; icon: ReactNode }[] = [
 export function AppShell({
   tab,
   onTab,
-  onReset,
   onSearch,
   children,
 }: {
   tab: JefaturaTab;
   onTab: (tab: JefaturaTab) => void;
-  onReset: () => void;
   onSearch?: (query: string) => void;
   children: ReactNode;
 }) {
@@ -55,9 +54,7 @@ export function AppShell({
     <div className="min-h-screen lg:flex">
       <aside className="border-b border-white/10 bg-navy text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-60 lg:shrink-0 lg:flex-col lg:border-b-0 lg:border-r">
         <div className="px-3 py-4 lg:px-4">
-          <p className="mb-3 px-1 text-[11px] font-semibold uppercase tracking-wide text-white/45">
-            Despacho técnico
-          </p>
+          <BrandMark />
           <AccountBadge tone="dark" />
           <div className="mt-3 flex flex-wrap gap-1 lg:hidden">
             {account?.role === "admin" ? (
@@ -74,13 +71,6 @@ export function AppShell({
             >
               Perfil
             </Link>
-            <button
-              type="button"
-              onClick={onReset}
-              className="rounded-lg px-3 py-1.5 text-sm text-white/80 hover:bg-white/10"
-            >
-              Restablecer demo
-            </button>
           </div>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:px-3 lg:pb-0">
@@ -120,13 +110,6 @@ export function AppShell({
           >
             Mi perfil
           </Link>
-          <button
-            type="button"
-            onClick={onReset}
-            className="hidden rounded-lg px-3 py-2 text-left text-sm text-white/70 hover:bg-white/10 hover:text-white lg:block"
-          >
-            Restablecer demo
-          </button>
           {tab === "vivo" ? (
             <button
               type="button"

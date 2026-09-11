@@ -9,13 +9,13 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Despacho técnico",
+  title: "Voltsense",
   description:
-    "Gestión tecnológica de rutas, locaciones y viáticos para el estudio de caso INACAP.",
+    "Voltsense · despacho de servicio técnico. Gestión de rutas, OT y terreno.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Despacho técnico",
+    title: "Voltsense",
     statusBarStyle: "default",
   },
   icons: {

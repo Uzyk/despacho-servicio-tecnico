@@ -113,6 +113,8 @@ export type WorkOrder = {
   id: string;
   workType: WorkType;
   companyName: string;
+  contactName?: string;
+  contactPhone?: string;
   locationId: string;
   city?: string;
   address: string;

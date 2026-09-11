@@ -25,6 +25,7 @@ import { kitComplete, kitStats, leadKitOf } from "@/lib/kit";
 import { formatDayPretty } from "@/lib/calendar";
 import { BASE_ADDRESS, BASE_COORDS, coordsOf, formatGps, requestFix } from "@/lib/geo";
 import { stopClockHint } from "@/lib/eta";
+import { companyContactLabel, telHref, workOrderOf } from "@/lib/orders";
 import { compressPhoto } from "@/lib/evidence";
 import { useStore } from "@/lib/store";
 import { stopLocality } from "@/lib/regions";
@@ -88,6 +89,8 @@ export function StopCheckin({
     if (!locationOnly && assigned) openChecklist(stop.id, technicianId);
   }, [assigned, locationOnly, openChecklist, stop.id, technicianId]);
 
+  const order = workOrderOf(data, stop.workOrderId);
+  const contact = order ? companyContactLabel(order) : "";
   const loc = stopLocality(data, stop);
   const locRow = data.locations.find((l) => l.id === stop.locationId);
   const locCoords =
@@ -250,6 +253,23 @@ export function StopCheckin({
                 </p>
               ) : null}
             </div>
+          ) : null}
+          {contact ? (
+            <p className="mt-1 flex items-start gap-2 text-sm">
+              <span className="shrink-0 font-medium text-stone-500">
+                Contacto:
+              </span>
+              {order?.contactPhone ? (
+                <a
+                  href={telHref(order.contactPhone)}
+                  className="font-medium text-navy hover:underline"
+                >
+                  {contact}
+                </a>
+              ) : (
+                <span className="font-medium text-navy">{contact}</span>
+              )}
+            </p>
           ) : null}
         </div>
         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${badgeClass}`}>

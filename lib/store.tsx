@@ -57,8 +57,8 @@ import {
   withOvernightDefaults,
 } from "./allowances";
 
-const KEY = "despacho-inacap-v1";
-const CHANNEL = "despacho-inacap-v1";
+const KEY = "despacho-inacap-v2";
+const CHANNEL = "despacho-inacap-v2";
 
 function withRev(data: AppData): AppData {
   return { ...data, updatedAt: Date.now() };
@@ -244,10 +244,15 @@ function normalize(data: AppData): AppData {
       note: "Asignación inicial",
     }));
   }
-  data.workOrders = (data.workOrders ?? []).map((order) => ({
-    ...order,
-    materials: cleanMaterials(order.materials),
-  }));
+  data.workOrders = (data.workOrders ?? []).map((order) => {
+    const seed = SEED.workOrders.find((item) => item.id === order.id);
+    return {
+      ...order,
+      materials: cleanMaterials(order.materials),
+      contactName: order.contactName?.trim() || seed?.contactName,
+      contactPhone: order.contactPhone?.trim() || seed?.contactPhone,
+    };
+  });
   data.assignments = data.assignments.map((a) => {
     const van = data.routes.find((r) => r.id === a.routeId)?.vehicleId;
     return van && a.vehicleId !== van ? { ...a, vehicleId: van } : a;
@@ -340,6 +345,8 @@ type Store = {
   addWorkOrder: (input: {
     workType: WorkType;
     companyName: string;
+    contactName: string;
+    contactPhone: string;
     locationId: string;
     city?: string;
     address: string;
@@ -937,6 +944,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       addWorkOrder: (input) => {
         const companyName = input.companyName.trim();
+        const contactName = input.contactName.trim();
+        const contactPhone = input.contactPhone.trim();
         const address = input.address.trim();
         const installKind = input.installKind.trim();
         const materials = cleanMaterials(input.materials);
@@ -948,6 +957,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             id,
             workType: input.workType,
             companyName,
+            contactName: contactName || undefined,
+            contactPhone: contactPhone || undefined,
             locationId: input.locationId,
             city: input.city?.trim() || undefined,
             address,

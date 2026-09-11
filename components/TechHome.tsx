@@ -1,7 +1,8 @@
 "use client";
 
+import { isoDate } from "@/lib/calendar";
 import { formatHours } from "@/lib/hours";
-import { ROLE_LABEL } from "@/lib/auth";
+import { avatarDataUrl, ROLE_LABEL } from "@/lib/auth";
 import {
   EVENT_LABEL,
   formatWhen,
@@ -10,7 +11,7 @@ import {
   techOpenRoutes,
   techStats,
 } from "@/lib/record";
-import { formatRouteSpan } from "@/lib/routeDays";
+import { companionsOnDate, formatRouteSpan } from "@/lib/routeDays";
 import { nameOf, useStore } from "@/lib/store";
 import type { TechTab } from "./TechShell";
 import {
@@ -46,9 +47,14 @@ export function TechHome({
   if (open.length && pending.length === 0) {
     pending.push({ id: "hoy", label: "Registrar llegada en terreno" });
   }
-  const team = (data.accounts ?? [])
-    .filter((person) => person.role === "tecnico" && person.id !== account.id)
-    .slice(0, 4);
+  const team = companionsOnDate(data, techId, isoDate()).map((row) => ({
+    technicianId: row.technicianId,
+    routeId: row.routeId,
+    name: nameOf(data.technicians, row.technicianId),
+    photo:
+      data.accounts.find((a) => a.technicianId === row.technicianId)?.photo ||
+      avatarDataUrl(nameOf(data.technicians, row.technicianId)),
+  }));
   const recent = stats.events.slice(0, 4);
 
   return (
@@ -123,15 +129,17 @@ export function TechHome({
       <div className="grid gap-4 xl:grid-cols-[18rem_minmax(0,1fr)]">
         <PortalCard title="Equipo">
           {team.length === 0 ? (
-            <p className="text-sm text-stone-500">Sin otros técnicos.</p>
+            <p className="text-sm text-stone-500">
+              Nadie va contigo en una ruta de hoy.
+            </p>
           ) : (
             <ul>
               {team.map((person) => (
                 <PersonRow
-                  key={person.id}
+                  key={`${person.technicianId}-${person.routeId}`}
                   photo={person.photo}
                   name={person.name}
-                  hint={person.title}
+                  hint={`${person.technicianId} · ${person.routeId}`}
                 />
               ))}
             </ul>

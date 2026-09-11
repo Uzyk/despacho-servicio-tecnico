@@ -118,6 +118,11 @@ export function openRoutes(data: AppData) {
   return data.routes.filter(isRouteOpen);
 }
 
+export function assignmentsOnOpenRoutes(data: AppData) {
+  const open = new Set(openRoutes(data).map((r) => r.id));
+  return data.assignments.filter((a) => open.has(a.routeId));
+}
+
 export function finishedRoutes(data: AppData) {
   return data.routes
     .filter((r) => r.status === "finalizada")

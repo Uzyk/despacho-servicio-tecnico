@@ -30,6 +30,22 @@ export function hasActivityOn(data: AppData, route: Route, date: string) {
   return routeDates(data, route).includes(date);
 }
 
+export function companionsOnDate(
+  data: AppData,
+  technicianId: string,
+  date: string,
+) {
+  return data.assignments.filter((row) => {
+    if (row.technicianId === technicianId) return false;
+    const route = data.routes.find((r) => r.id === row.routeId);
+    if (!route) return false;
+    const sharesRoute = data.assignments.some(
+      (a) => a.routeId === route.id && a.technicianId === technicianId,
+    );
+    return sharesRoute && hasActivityOn(data, route, date);
+  });
+}
+
 export function isRestDay(route: Route, date: string) {
   return (route.restDates ?? []).includes(date);
 }

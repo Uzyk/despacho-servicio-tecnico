@@ -1,6 +1,6 @@
 {
-  "name": "Despacho servicio técnico",
-  "short_name": "Despacho",
+  "name": "Voltsense",
+  "short_name": "Voltsense",
   "lang": "es",
   "start_url": "/tecnico",
   "scope": "/",
